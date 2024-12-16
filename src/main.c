@@ -260,7 +260,6 @@ void render_file(uint8_t *data, int file_size, char *file_name, int cursor_line,
         printf("%02x", data[i]);
         printf("\033[0m");
 
-        // Last charcter of the line
         // Print the char line
         // if (i % 0x10 == 15 || data[i] == 0x0a || i == file_size - 1) {
         if (i % 0x10 == 15 || i == file_size - 1) {
