@@ -5,8 +5,7 @@
 #include <termios.h>
 #include <unistd.h>
 
-void render_file(uint8_t *data, int file_size, char *file_name, int cursor_line,
-        int cursor_char, bool edit_mode);
+void render_file(uint8_t *data, int file_size, char *file_name, int cursor_index, bool edit_mode);
 
 void render_title();
 int data_index(int cursor_line, int cursor_char);
@@ -29,8 +28,7 @@ int main(int argc, char *argv[]) {
     FILE *file;
     bool quit = false;
 
-    int cursor_line = 0;
-    int cursor_char = 0;
+    int cursor_index = 0;
 
     // Try to open the file
     file = fopen(argv[1], "rb");
@@ -79,8 +77,7 @@ int main(int argc, char *argv[]) {
             // Restore se saved position (staring postion, upper left)
             printf("\033[u");
 
-            render_file(data, file_size, argv[1], cursor_line, cursor_char,
-                    edit_mode);
+            render_file(data, file_size, argv[1], cursor_index, edit_mode);
             refresh = false;
         }
 
@@ -99,12 +96,12 @@ int main(int argc, char *argv[]) {
             if (valid_entry) {
                 uint8_t nibble_bits = n << 4 * (1 - nibble_index);
                 uint8_t mask = 0x0F << 4 * nibble_index;
-                data[cursor_char + 16 * cursor_line] &= mask;
-                data[cursor_char + 16 * cursor_line] |= nibble_bits;
+                data[cursor_index] &= mask;
+                data[cursor_index] |= nibble_bits;
                 nibble_index += 1;
                 if (nibble_index > 1) {
                     nibble_index = 0;
-                    cursor_char += 1;
+                    cursor_index += 1;
                 }
             }
             refresh = true;
@@ -113,58 +110,53 @@ int main(int argc, char *argv[]) {
 
             switch (c) {
                 case 'l':
-                    cursor_char += 1;
-                    if (data_index(cursor_line, cursor_char) > file_size - 1) {
-                        cursor_char -=1;
+                    if (cursor_index < file_size - 1) {
+                        cursor_index += 1;
                     }
                     refresh = true;
                     break;
 
                 case 'h':
-                    cursor_char -= 1;
-                    if (data_index(cursor_line, cursor_char) < 0) {
-                        cursor_line = 0;
-                        cursor_char = 0;
+                    if (cursor_index > 0) {
+                        cursor_index -= 1;
                     }
                     refresh = true;
                     break;
 
                 case 'j':
-                    cursor_line += 1;
-                    if (data_index(cursor_line, cursor_char) > file_size - 1) {
-                        cursor_line -= 1;
+                    if (cursor_index < file_size - 17) {
+                        cursor_index += 16;
                     }
                     refresh = true;
                     break;
 
                 case 'k':
-                    cursor_line -= 1;
-                    if (cursor_line < 0) {cursor_line = 0;}
+                    if (cursor_index > 16) {
+                        cursor_index -= 16;
+                    }
                     refresh = true;
                     break;
 
                 case 'g':
                     // Go to the beginning of the file
-                    cursor_line = 0;
-                    cursor_char = 0;
+                    cursor_index = 0;
                     refresh = true;
                     break;
 
                 case 'G':
                     // Go to the end of the file
-                    cursor_line = file_size / 16;
-                    cursor_char = file_size - cursor_line * 16 - 1;
+                    cursor_index = file_size - 1;
                     refresh = true;
                     break;
                 case '0':
                     // Go to the beginning of the line
-                    cursor_char = 0;
+                    cursor_index = cursor_index / 16 * 16;
                     refresh = true;
                     break;
 
                 case '$':
                     // Got to the end of the line
-                    cursor_char = 15;
+                    cursor_index = cursor_index / 16 * 16 + 15;
                     refresh = true;
                     break;
                 case 'i':
@@ -183,8 +175,8 @@ int main(int argc, char *argv[]) {
 
                 case 'x':
                     // Cut byte on cursor position
-                    clipboard = data[cursor_char + 16 * cursor_line];
-                    for (int i = cursor_char + 16 * cursor_line; i < file_size - 1; i++) {
+                    clipboard = data[cursor_index];
+                    for (int i = cursor_index; i < file_size - 1; i++) {
                         data[i] = data[i+1];
                     }
                     file_size -= 1;
@@ -193,13 +185,13 @@ int main(int argc, char *argv[]) {
 
                 case 'y':
                     // Copy byte
-                    clipboard = data[cursor_char + 16 * cursor_line];
+                    clipboard = data[cursor_index];
                     break;
 
                 case 'p':
                     // Paste byte
-                    data[cursor_char + 16 * cursor_line] = clipboard;
-                    cursor_char += 1;
+                    data[cursor_index] = clipboard;
+                    cursor_index += 1;
                     refresh = true;
                     break;
 
@@ -208,10 +200,10 @@ int main(int argc, char *argv[]) {
                     file_size += 1;
                     data = realloc(data, file_size);
                     data[file_size - 1] = 0;
-                    for (int i = file_size - 1; i > cursor_char + 16 * cursor_line + 1; i--) {
+                    for (int i = file_size - 1; i > cursor_index + 1; i--) {
                         data[i] = data[i-1];
                     }
-                    data[cursor_char + 16 * cursor_line + 1] = 0;
+                    data[cursor_index + 1] = 0;
                     refresh = true;
                     break;
                 case 'q':
@@ -224,18 +216,12 @@ int main(int argc, char *argv[]) {
                     break;
             }
         }
-
-        if (cursor_char > 16) {
-            cursor_line += 1;
-            cursor_char = 0;
-        }
     }
 
     free(data);
     return 0;
 }
-void render_file(uint8_t *data, int file_size, char *file_name, int cursor_line,
-        int cursor_char, bool edit_mode) {
+void render_file(uint8_t *data, int file_size, char *file_name, int cursor_index, bool edit_mode) {
     int line = 0;
     bool end_of_line = false;
 
@@ -263,9 +249,9 @@ void render_file(uint8_t *data, int file_size, char *file_name, int cursor_line,
             printf(" ");
         }
         // Set color for cursor
-        if (cursor_line * 16 + cursor_char == i && !edit_mode) {
+        if (cursor_index == i && !edit_mode) {
             printf("\033[48;5;88m");
-        } else if (cursor_line * 16 + cursor_char == i && edit_mode) {
+        } else if (cursor_index == i && edit_mode) {
             printf("\033[48;5;60m");
         }
         printf("%02x", data[i]);
@@ -279,7 +265,7 @@ void render_file(uint8_t *data, int file_size, char *file_name, int cursor_line,
                     c++) {
 
                 // Adjust cursor's color
-                if (cursor_line * 16 + cursor_char == c) {
+                if (cursor_index == c) {
                     printf("\033[48;5;88m");
                 }
                 if (data[c] >= 32 && data[c] <= 126) {
