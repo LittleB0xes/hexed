@@ -27,7 +27,6 @@ int main(int argc, char *argv[]) {
     enableRawMode();
 
     FILE *file;
-    char c;
     bool quit = false;
 
     int cursor_line = 0;
@@ -63,12 +62,30 @@ int main(int argc, char *argv[]) {
     printf("\033[s");
 
     bool edit_mode = false;
-    bool refresh = false;
+    bool refresh = true;
+    bool exit = false;
 
     uint8_t clipboard = 0;
     int nibble_index = 0;
-    render_file(data, file_size, argv[1], cursor_line, cursor_char, edit_mode);
-    while (read(STDIN_FILENO, &c, 1) == 1 && c != 'q') {
+
+
+    // Main loop
+    // while (read(STDIN_FILENO, &c, 1) == 1 && c != 'q') {
+    while (!exit) {
+        if (refresh) {
+            // Clear string
+            printf("\033[2J");
+
+            // Restore se saved position (staring postion, upper left)
+            printf("\033[u");
+
+            render_file(data, file_size, argv[1], cursor_line, cursor_char,
+                    edit_mode);
+            refresh = false;
+        }
+
+        char c;
+        read(STDIN_FILENO, &c, 1);
         if (edit_mode) {
             uint8_t n;
             bool valid_entry = false;
@@ -197,6 +214,9 @@ int main(int argc, char *argv[]) {
                     data[cursor_char + 16 * cursor_line + 1] = 0;
                     refresh = true;
                     break;
+                case 'q':
+                    exit = true;
+                    break;
 
                 case 27:
                     edit_mode = false;
@@ -208,17 +228,6 @@ int main(int argc, char *argv[]) {
         if (cursor_char > 16) {
             cursor_line += 1;
             cursor_char = 0;
-        }
-        if (refresh) {
-            // Clear string
-            printf("\033[2J");
-
-            // Restore se saved position (staring postion, upper left)
-            printf("\033[u");
-
-            render_file(data, file_size, argv[1], cursor_line, cursor_char,
-                    edit_mode);
-            refresh = false;
         }
     }
 
