@@ -170,6 +170,8 @@ int main(int argc, char *argv[]) {
                     for (int i = cursor_char + 16 * cursor_line; i < file_size - 1; i++) {
                         data[i] = data[i+1];
                     }
+                    file_size -= 1;
+                    data = realloc(data, file_size);
                     refresh = true;
 
                 case 'y':
