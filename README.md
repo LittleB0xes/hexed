@@ -17,7 +17,7 @@ YP   YP Y88888P YP    YP Y88888P Y8888D'
 
 ## Command
 ```
-- hjkl or arrow     move 
+- hjkl              move 
 - g                 move to the beginning of the file
 - G                 move to the end of the file
 - (                 move to the beginning of the line
