@@ -85,10 +85,10 @@ int main(int argc, char *argv[]) {
             page += 1;
             refresh = true;
         }
-        if (cursor_index < page * PAGE_SIZE) {
-            page -= 1;
-            refresh = true;
-        }
+        // if (cursor_index < page * PAGE_SIZE) {
+        //     page -= 1;
+        //     refresh = true;
+        // }
         if (refresh) {
             // Clear string
             printf("\033[2J");
@@ -218,7 +218,7 @@ int main(int argc, char *argv[]) {
                     break;
                 case '[':
                     // Go to beginning of the page
-                    cursor_index = page / PAGE_SIZE;
+                    cursor_index = page * PAGE_SIZE;
                     refresh = true;
                     break;
                 case ']':
@@ -389,9 +389,6 @@ void render_file(uint8_t *data, int file_size, char *file_name, uint32_t page, i
     }
 }
 
-int data_index(int cursor_line, int cursor_char) {
-    return cursor_line * 16 + cursor_char;
-}
 
 void render_title() {
     printf("    db   db d88888b db    db d88888b d8888b.\n");
