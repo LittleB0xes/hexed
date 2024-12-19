@@ -7,6 +7,8 @@
 
 void render_file(uint8_t *data, int file_size, char *file_name, int cursor_index, bool edit_mode);
 
+int valid_entry(char c);
+bool is_printable_code(uint8_t c);
 void render_title();
 int data_index(int cursor_line, int cursor_char);
 
@@ -124,7 +126,7 @@ int main(int argc, char *argv[]) {
                     break;
 
                 case 'j':
-                    if (cursor_index < file_size - 17) {
+                    if (cursor_index < file_size - 16) {
                         cursor_index += 16;
                     }
                     refresh = true;
@@ -221,6 +223,25 @@ int main(int argc, char *argv[]) {
     free(data);
     return 0;
 }
+
+bool is_printable_code(uint8_t c) {
+    return c >= 32 && c <= 126;
+
+
+}
+int valid_entry(char c) {
+    int n;
+    if (c >= 48 && c <= 57) {
+        n = c - 48;
+    } else if (c >= 97 && c <= 102) {
+        n = c - 87;
+    } else {
+        n = -1;
+    }
+
+    return n;
+}
+
 void render_file(uint8_t *data, int file_size, char *file_name, int cursor_index, bool edit_mode) {
     int line = 0;
     bool end_of_line = false;
@@ -240,6 +261,7 @@ void render_file(uint8_t *data, int file_size, char *file_name, int cursor_index
     }
     printf("\033[38;5;43m00000000:\033[0m ");
     for (int i = 0; i < file_size; i++) {
+        // Adress display
         if (i % 0x10 == 0 && i != 0) {
             printf("\033[38;5;43m%08x:\033[0m ", i);
             line += 1;
@@ -253,6 +275,9 @@ void render_file(uint8_t *data, int file_size, char *file_name, int cursor_index
             printf("\033[48;5;88m");
         } else if (cursor_index == i && edit_mode) {
             printf("\033[48;5;60m");
+        } else if (is_printable_code(data[i])) {
+
+            printf("\033[38;5;230m");
         }
         printf("%02x", data[i]);
         printf("\033[0m");
@@ -268,7 +293,8 @@ void render_file(uint8_t *data, int file_size, char *file_name, int cursor_index
                 if (cursor_index == c) {
                     printf("\033[48;5;88m");
                 }
-                if (data[c] >= 32 && data[c] <= 126) {
+                if (is_printable_code(data[c])) {
+                    printf("\033[38;5;230m");
                     printf("%c", data[c]);
                 } else {
                     printf(".");
