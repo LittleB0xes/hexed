@@ -15,10 +15,6 @@ YP   YP Y88888P YP    YP Y88888P Y8888D'
 ./rhexed my_file
 ```
 
-## Disclaimer
-:warning: Currently, the size of open files is limited by the size of the console. Multi-page management will come soon...
-
-
 ## Command
 ```
 - hjkl or arrow     move 
@@ -26,6 +22,8 @@ YP   YP Y88888P YP    YP Y88888P Y8888D'
 - G                 move to the end of the file
 - (                 move to the beginning of the line
 - )                 move to the end of the line
+- n                 next page
+- b                 previous page
 - a                 insert a byte after cursor position
 - x                 cut a byte
 - y                 copy a byte 

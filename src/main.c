@@ -5,7 +5,9 @@
 #include <termios.h>
 #include <unistd.h>
 
-void render_file(uint8_t *data, int file_size, char *file_name, int cursor_index, bool edit_mode);
+#define PAGE_SIZE 0x100
+
+void render_file(uint8_t *data, int file_size, char *file_name, uint32_t page, int cursor_index, bool edit_mode);
 
 int valid_entry(char c);
 bool is_printable_code(uint8_t c);
@@ -65,6 +67,8 @@ int main(int argc, char *argv[]) {
     bool refresh = true;
     bool exit = false;
 
+    uint32_t page = 0;
+
     uint8_t clipboard = 0;
     int nibble_index = 0;
 
@@ -79,7 +83,7 @@ int main(int argc, char *argv[]) {
             // Restore se saved position (staring postion, upper left)
             printf("\033[u");
 
-            render_file(data, file_size, argv[1], cursor_index, edit_mode);
+            render_file(data, file_size, argv[1], page, cursor_index, edit_mode);
             refresh = false;
         }
 
@@ -107,7 +111,45 @@ int main(int argc, char *argv[]) {
                 }
             }
             refresh = true;
-            if (c == 27) {edit_mode = false;}
+            switch (c) {
+                case 27:
+                    nibble_index = 0;
+                    refresh = true;
+                    edit_mode = false;
+                    break;
+                case 'l':
+                    if (cursor_index < file_size - 1) {
+                        cursor_index += 1;
+                    }
+                    nibble_index = 0;
+                    refresh = true;
+                    break;
+
+                case 'h':
+                    if (cursor_index > 0) {
+                        cursor_index -= 1;
+                    }
+                    nibble_index = 0;
+                    refresh = true;
+                    break;
+
+                case 'j':
+                    if (cursor_index < file_size - 16) {
+                        cursor_index += 16;
+                    }
+                    nibble_index = 0;
+                    refresh = true;
+                    break;
+
+                case 'k':
+                    if (cursor_index > 16) {
+                        cursor_index -= 16;
+                    }
+                    nibble_index = 0;
+                    refresh = true;
+                    break;
+
+            }
         } else {
 
             switch (c) {
@@ -157,9 +199,26 @@ int main(int argc, char *argv[]) {
                     break;
 
                 case ')':
-                    // Got to the end of the line
+                    // Go to the end of the line
                     cursor_index = cursor_index / 16 * 16 + 15;
                     refresh = true;
+                    break;
+                case 'n':
+                    // Go to next page
+
+                    if (page < file_size / PAGE_SIZE) {
+                        cursor_index += PAGE_SIZE;
+                        page += 1;
+                        refresh = true;
+                    }
+                    break;
+                case 'b':
+                    // Go to previous page
+                    if (page > 0) {
+                        cursor_index -= PAGE_SIZE;
+                        page -= 1;
+                        refresh = true;
+                    }
                     break;
                 case 'i':
                     // Switch to insert mode
@@ -242,8 +301,7 @@ int valid_entry(char c) {
     return n;
 }
 
-void render_file(uint8_t *data, int file_size, char *file_name, int cursor_index, bool edit_mode) {
-    int line = 0;
+void render_file(uint8_t *data, int file_size, char *file_name, uint32_t page, int cursor_index, bool edit_mode) {
     bool end_of_line = false;
 
 
@@ -259,12 +317,13 @@ void render_file(uint8_t *data, int file_size, char *file_name, int cursor_index
                 "EDIT --\n",
                 file_name, file_size);
     }
-    printf("\033[38;5;43m00000000:\033[0m ");
-    for (int i = 0; i < file_size; i++) {
+    for (int i = page * PAGE_SIZE; i < (page + 1) * PAGE_SIZE && i < file_size; i++) {
         // Adress display
         if (i % 0x10 == 0 && i != 0) {
             printf("\033[38;5;43m%08x:\033[0m ", i);
-            line += 1;
+        } else if (i % 0x10 == 0 && i == 0) {
+            printf("\033[38;5;43m00000000:\033[0m ");
+        
         }
 
         if (i % 2 == 0) {
@@ -286,7 +345,8 @@ void render_file(uint8_t *data, int file_size, char *file_name, int cursor_index
         // if (i % 0x10 == 15 || data[i] == 0x0a || i == file_size - 1) {
         if (i % 0x10 == 15 || i == file_size - 1) {
             printf("\033[54G \033[38;5;43m| \033[0m ");
-            for (int c = 0 + line * 0x10; c < 0x10 + line * 0x10 && c < file_size;
+            int current_line = i / 0x10;
+            for (int c = current_line * 0x10; c < 0x10 + current_line * 0x10 && c < file_size;
                     c++) {
 
                 // Adjust cursor's color
@@ -322,6 +382,7 @@ void render_title() {
 
     printf("\n\033[38;5;43m");
     printf("move: hjkl - beginning: g - end: G - end of line: $ - beginning of line: 0\n");
+    printf("next page: n - previous page: b\n");
     printf("edit: i - quit edit: ESC - save: w - quit: q\n");
     printf("copy byte: y - cut byte: x - paste byte: p - add byte: a\n");
 
