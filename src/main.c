@@ -76,6 +76,19 @@ int main(int argc, char *argv[]) {
     // Main loop
     // while (read(STDIN_FILENO, &c, 1) == 1 && c != 'q') {
     while (!exit) {
+
+        // Keep the cursor inside the bound
+        if (cursor_index > file_size - 1) { cursor_index = file_size - 1; }
+
+        // Change page if necessary
+        if (cursor_index >= (page + 1) * PAGE_SIZE) {
+            page += 1;
+            refresh = true;
+        }
+        if (cursor_index < page * PAGE_SIZE) {
+            page -= 1;
+            refresh = true;
+        }
         if (refresh) {
             // Clear string
             printf("\033[2J");
@@ -142,7 +155,7 @@ int main(int argc, char *argv[]) {
                     break;
 
                 case 'k':
-                    if (cursor_index > 16) {
+                    if (cursor_index >= 16) {
                         cursor_index -= 16;
                     }
                     nibble_index = 0;
@@ -175,7 +188,7 @@ int main(int argc, char *argv[]) {
                     break;
 
                 case 'k':
-                    if (cursor_index > 16) {
+                    if (cursor_index >= 16) {
                         cursor_index -= 16;
                     }
                     refresh = true;
@@ -201,6 +214,16 @@ int main(int argc, char *argv[]) {
                 case ')':
                     // Go to the end of the line
                     cursor_index = cursor_index / 16 * 16 + 15;
+                    refresh = true;
+                    break;
+                case '[':
+                    // Go to beginning of the page
+                    cursor_index = page / PAGE_SIZE;
+                    refresh = true;
+                    break;
+                case ']':
+                    // Go to the end of the page
+                    cursor_index = page * PAGE_SIZE + 0xff;
                     refresh = true;
                     break;
                 case 'n':
@@ -335,14 +358,12 @@ void render_file(uint8_t *data, int file_size, char *file_name, uint32_t page, i
         } else if (cursor_index == i && edit_mode) {
             printf("\033[48;5;60m");
         } else if (is_printable_code(data[i])) {
-
             printf("\033[38;5;230m");
         }
         printf("%02x", data[i]);
         printf("\033[0m");
 
-        // Print the char line
-        // if (i % 0x10 == 15 || data[i] == 0x0a || i == file_size - 1) {
+        // Print the char line on the right
         if (i % 0x10 == 15 || i == file_size - 1) {
             printf("\033[54G \033[38;5;43m| \033[0m ");
             int current_line = i / 0x10;
@@ -381,8 +402,8 @@ void render_title() {
     printf("    YP   YP Y88888P YP    YP Y88888P Y8888D'\n");
 
     printf("\n\033[38;5;43m");
-    printf("move: hjkl - beginning: g - end: G - end of line: $ - beginning of line: 0\n");
-    printf("next page: n - previous page: b\n");
+    printf("move: hjkl - beginning: g - end: G - beginning of line: ( - end of line: )\n");
+    printf("beginning of page: [ - end of page: ] - next page: n - previous page: b\n");
     printf("edit: i - quit edit: ESC - save: w - quit: q\n");
     printf("copy byte: y - cut byte: x - paste byte: p - add byte: a\n");
 
