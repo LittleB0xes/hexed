@@ -150,13 +150,13 @@ int main(int argc, char *argv[]) {
                     cursor_index = file_size - 1;
                     refresh = true;
                     break;
-                case '0':
+                case '(':
                     // Go to the beginning of the line
                     cursor_index = cursor_index / 16 * 16;
                     refresh = true;
                     break;
 
-                case '$':
+                case ')':
                     // Got to the end of the line
                     cursor_index = cursor_index / 16 * 16 + 15;
                     refresh = true;

@@ -1,25 +1,38 @@
-# HexeD - A work in progress Hex editor
-
-This is a work in progress hex editor made in C, for the fun. Features will be added over time.
-
-
-## Use
 ```
-./hexed my_file
+db   db d88888b db    db d88888b d8888b.
+88   88 88'     `8b  d8' 88'     88  `8D
+88ooo88 88ooooo  `8bd8'  88ooooo 88   88
+88~~~88 88~~~~~  .dPYb.  88~~~~~ 88   88
+88   88 88.     .8P  Y8. 88.     88  .8D
+YP   YP Y88888P YP    YP Y88888P Y8888D'
 ```
 
-## Commands
 
-- h,j,k,l : move
-- g : go to the beginning of the file
-- G : go to the end of the file
-- 0 : go to the beginning of the line
-- $ : go to the end of the line
-- x : cut a byte at the cursor position
-- y : copy the byte at the cursor position
-- p : paste a byte after the cursor position
-- a : add 0x00 byte at the cursor position
-- i : switch to insert mode
-- <ESC> : quit insert mode
-- q : quit without saving
-- w : save the file
+# HexeD - a WIP hex file editor
+
+## Usage
+```
+./rhexed my_file
+```
+
+## Disclaimer
+:warning: Currently, the size of open files is limited by the size of the console. Multi-page management will come soon...
+
+
+## Command
+```
+- hjkl or arrow     move 
+- g                 move to the beginning of the file
+- G                 move to the end of the file
+- (                 move to the beginning of the line
+- )                 move to the end of the line
+- a                 insert a byte after cursor position
+- x                 cut a byte
+- y                 copy a byte 
+- p                 paste a byte
+- i                 insert mode
+- <ESC>             quit insert mode
+- w                 write file
+- q                 quit
+```
+
