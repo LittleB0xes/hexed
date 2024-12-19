@@ -22,6 +22,8 @@ YP   YP Y88888P YP    YP Y88888P Y8888D'
 - G                 move to the end of the file
 - (                 move to the beginning of the line
 - )                 move to the end of the line
+- [                 move to the beginning of the page
+- ]                 move to the end of the page
 - n                 next page
 - b                 previous page
 - a                 insert a byte after cursor position
