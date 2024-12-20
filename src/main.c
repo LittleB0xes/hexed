@@ -80,15 +80,12 @@ int main(int argc, char *argv[]) {
         // Keep the cursor inside the bound
         if (cursor_index > file_size - 1) { cursor_index = file_size - 1; }
 
+        if (cursor_index < 0) { cursor_index = 0; }
         // Change page if necessary
-        if (cursor_index >= (page + 1) * PAGE_SIZE) {
-            page += 1;
+        if (cursor_index >= (page + 1) * PAGE_SIZE || cursor_index < page * PAGE_SIZE) {
+            page = cursor_index / PAGE_SIZE;
             refresh = true;
         }
-        // if (cursor_index < page * PAGE_SIZE) {
-        //     page -= 1;
-        //     refresh = true;
-        // }
         if (refresh) {
             // Clear string
             printf("\033[2J");
