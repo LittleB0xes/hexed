@@ -327,16 +327,12 @@ void render_file(uint8_t *data, int file_size, char *file_name, uint32_t page, i
 
     render_title();
 
-    if (!edit_mode) {
-        printf("\033[38;5;43m%s -- size: \033[38;5;45m%i bytes\033[38;5;43m -- page: \033[38;5;45m%i / %i\n\033[0m", file_name,
+    if (edit_mode) {
+        printf("\033[30C\033[38;5;208m -- EDIT --");
+    }
+    printf("\n\033[38;5;43m%s -- size: \033[38;5;45m%i bytes\033[38;5;43m -- page: \033[38;5;45m%i / %i\n\033[0m", file_name,
                 file_size, page, file_size / PAGE_SIZE);
 
-    } else {
-
-        printf("\033[38;5;43m%s -- size: \033[38;5;45m%i bytes\033[38;5;43m -- page: \033[38;5;45m%i / %i\033[38;5;208m -- "
-                "EDIT --\n",
-                file_name, file_size, page, file_size / PAGE_SIZE);
-    }
     for (int i = page * PAGE_SIZE; i < (page + 1) * PAGE_SIZE && i < file_size; i++) {
         // Adress display
         if (i % 0x10 == 0 && i != 0) {
