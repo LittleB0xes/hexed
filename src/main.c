@@ -7,7 +7,7 @@
 
 #define PAGE_SIZE 0x100
 
-void render_file(uint8_t *data, int file_size, char *file_name, uint32_t page, int cursor_index, bool edit_mode);
+void render_file(uint8_t *data, int file_size, char *file_name, uint32_t page, int cursor_index, bool edit_mode, bool jump_mode, uint32_t jump_address);
 
 int valid_entry(char c);
 bool is_printable_code(uint8_t c);
@@ -67,6 +67,9 @@ int main(int argc, char *argv[]) {
     bool refresh = true;
     bool exit = false;
 
+    bool jump_mode = false;
+    uint32_t jump_address = 0;
+
     uint32_t page = 0;
 
     uint8_t clipboard = 0;
@@ -93,7 +96,7 @@ int main(int argc, char *argv[]) {
             // Restore se saved position (staring postion, upper left)
             printf("\033[u");
 
-            render_file(data, file_size, argv[1], page, cursor_index, edit_mode);
+            render_file(data, file_size, argv[1], page, cursor_index, edit_mode, jump_mode, jump_address);
             refresh = false;
         }
 
@@ -160,6 +163,38 @@ int main(int argc, char *argv[]) {
                     break;
 
             }
+        } else if (jump_mode) {
+            if (c >= 48 && c <= 57) {
+                int n = c - 48;
+                jump_address <<= 4;
+                jump_address += n;
+                refresh = true;
+            } else if (c >= 97 && c <= 102) {
+                int n = c - 87;
+                jump_address <<= 4;
+                jump_address += n;
+                refresh = true;
+            }
+            switch(c) {
+                case 27:
+                    jump_mode = false;
+                    refresh = true;;
+                    break;
+                case '\n':
+                    jump_mode = false;
+                    cursor_index = jump_address;
+                    jump_address = 0;
+                    refresh = true;;
+                    break;
+                case 127:
+                    jump_address >>= 4;
+                    refresh = true;
+                    break;
+                case 'q':
+                    exit = true;
+                    break;
+            }
+
         } else {
 
             switch (c) {
@@ -275,6 +310,10 @@ int main(int argc, char *argv[]) {
                     cursor_index += 1;
                     refresh = true;
                     break;
+                case 'J':
+                    jump_mode = true;
+                    refresh = true;
+                    break;
 
                 case 'a':
                     // Add byte after cursor position
@@ -321,7 +360,7 @@ int valid_entry(char c) {
     return n;
 }
 
-void render_file(uint8_t *data, int file_size, char *file_name, uint32_t page, int cursor_index, bool edit_mode) {
+void render_file(uint8_t *data, int file_size, char *file_name, uint32_t page, int cursor_index, bool edit_mode, bool jump_mode, uint32_t jump_address) {
     bool end_of_line = false;
 
 
@@ -329,6 +368,9 @@ void render_file(uint8_t *data, int file_size, char *file_name, uint32_t page, i
 
     if (edit_mode) {
         printf("\033[30C\033[38;5;208m -- EDIT --");
+    }
+    else if (jump_mode) {
+        printf("\033[30C\033[38;5;208mJump to %08x", jump_address);
     }
     printf("\n\033[38;5;43m%s\n", file_name);
     printf("size: \033[38;5;45m%i bytes\033[38;5;43m -- adress: \033[38;5;45m%08x \033[38;5;43m-- page: \033[38;5;45m%i / %i\n\033[0m",
@@ -381,6 +423,7 @@ void render_file(uint8_t *data, int file_size, char *file_name, uint32_t page, i
             printf("\n");
         }
     }
+
 }
 
 
