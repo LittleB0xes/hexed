@@ -10,6 +10,8 @@ YP   YP Y88888P YP    YP Y88888P Y8888D'
 
 # HexeD - a WIP hex file editor
 
+At the same time, I have the same project but in [Rust](https://github.com/LittleB0xes/rhexed)
+
 ## Usage
 ```
 ./rhexed my_file
