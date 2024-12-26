@@ -1,13 +1,18 @@
 #include <stdbool.h>
+#include <stddef.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <termios.h>
 #include <unistd.h>
 
-#define PAGE_SIZE 0x100
+#include "editor.h"
 
-void render_file(uint8_t *data, int file_size, char *file_name, uint32_t page, int cursor_index, bool edit_mode, bool jump_mode, uint32_t jump_address);
+#define PAGE_SIZE 0x100
+#define MAX_FILE 10
+
+
+void render_file(uint8_t *data, int file_size, char *file_name, uint32_t page, int cursor_index, Mode mode, uint32_t jump_address);
 
 int valid_entry(char c);
 bool is_printable_code(uint8_t c);
@@ -16,6 +21,7 @@ int data_index(int cursor_line, int cursor_char);
 
 
 struct termios orig_termios;
+
 
 void disableRawMode() { tcsetattr(STDIN_FILENO, TCSAFLUSH, &orig_termios); }
 void enableRawMode() {
@@ -27,34 +33,41 @@ void enableRawMode() {
 }
 
 int main(int argc, char *argv[]) {
+
+    FILE *f;
+
     enableRawMode();
 
-    FILE *file;
-    bool quit = false;
+    int file_number = argc - 1;
+    int *all_size = (int*) malloc(file_number * sizeof(int));
+    uint8_t **all_data = (uint8_t **) malloc(file_number * sizeof(uint8_t*));
+    for (int i = 1; i <= file_number; i++) {
+        FILE *f;
+        f = fopen(argv[i], "rb");
+        if (f == NULL) {
+            printf("ERROR - Could not open file : %s", argv[1]);
+            return -1;
+        }
 
-    int cursor_index = 0;
+        // Find the file's size
+        fseek(f, 0, SEEK_END);
+        int file_size = ftell(f);
 
-    // Try to open the file
-    file = fopen(argv[1], "rb");
-    if (file == NULL) {
-        printf("ERROR - Could not open file : %s", argv[1]);
-        return -1;
+        // // Rewind
+        fseek(f, 0, SEEK_SET);
+        // Allocate some memory for the reading file
+        uint8_t *data = (uint8_t *)malloc(sizeof(uint8_t) * file_size);
+
+        // Read the data from file
+        // And store it in data
+        fread(data, sizeof(uint8_t), file_size, f);
+        fclose(f);
+
+        // Store file data
+        all_data[i-1] = data;
+        all_size[i - 1] = file_size;
     }
 
-    // Find the file's size
-    fseek(file, 0, SEEK_END);
-    int file_size = ftell(file);
-
-    // Rewind
-    fseek(file, 0, SEEK_SET);
-
-    // Allocate some memory for the reading file
-    uint8_t *data = (uint8_t *)malloc(sizeof(uint8_t) * file_size);
-
-    // Read the data from file
-    // And store it in data
-    fread(data, sizeof(uint8_t), file_size, file);
-    fclose(file);
 
     // Clear screen
     printf("\033[2J");
@@ -63,22 +76,28 @@ int main(int argc, char *argv[]) {
     // Store the starting position
     printf("\033[s");
 
-    bool edit_mode = false;
     bool refresh = true;
     bool exit = false;
 
-    bool jump_mode = false;
+    Mode mode = Normal;
+    
     uint32_t jump_address = 0;
+
 
     uint32_t page = 0;
 
     uint8_t clipboard = 0;
     int nibble_index = 0;
 
+    uint8_t current_file = 0;
 
-    // Main loop
+
+
+    int cursor_index = 0;
+    //Main loop
     // while (read(STDIN_FILENO, &c, 1) == 1 && c != 'q') {
     while (!exit) {
+        int file_size = all_size[current_file];
 
         // Keep the cursor inside the bound
         if (cursor_index > file_size - 1) { cursor_index = file_size - 1; }
@@ -96,13 +115,14 @@ int main(int argc, char *argv[]) {
             // Restore se saved position (staring postion, upper left)
             printf("\033[u");
 
-            render_file(data, file_size, argv[1], page, cursor_index, edit_mode, jump_mode, jump_address);
+            // render_file(data, file_size, argv[1], page, cursor_index, edit_mode, jump_mode, jump_address);
+            render_file(all_data[current_file], all_size[current_file], argv[current_file + 1], page, cursor_index, mode, jump_address);
             refresh = false;
         }
 
         char c;
         read(STDIN_FILENO, &c, 1);
-        if (edit_mode) {
+        if (mode == Edit) {
             uint8_t n;
             bool valid_entry = false;
             if (c >= 48 && c <= 57) {
@@ -115,8 +135,8 @@ int main(int argc, char *argv[]) {
             if (valid_entry) {
                 uint8_t nibble_bits = n << 4 * (1 - nibble_index);
                 uint8_t mask = 0x0F << 4 * nibble_index;
-                data[cursor_index] &= mask;
-                data[cursor_index] |= nibble_bits;
+                all_data[current_file][cursor_index] &= mask;
+                all_data[current_file][cursor_index] |= nibble_bits;
                 nibble_index += 1;
                 if (nibble_index > 1) {
                     nibble_index = 0;
@@ -128,7 +148,7 @@ int main(int argc, char *argv[]) {
                 case 27:
                     nibble_index = 0;
                     refresh = true;
-                    edit_mode = false;
+                    mode = Normal;
                     break;
                 case 'l':
                     if (cursor_index < file_size - 1) {
@@ -163,7 +183,7 @@ int main(int argc, char *argv[]) {
                     break;
 
             }
-        } else if (jump_mode) {
+        } else if (mode == Jump) {
             if (c >= 48 && c <= 57) {
                 int n = c - 48;
                 jump_address <<= 4;
@@ -177,11 +197,11 @@ int main(int argc, char *argv[]) {
             }
             switch(c) {
                 case 27:
-                    jump_mode = false;
+                    mode = Normal;
                     refresh = true;;
                     break;
                 case '\n':
-                    jump_mode = false;
+                    mode = Normal;
                     cursor_index = jump_address;
                     jump_address = 0;
                     refresh = true;;
@@ -195,7 +215,7 @@ int main(int argc, char *argv[]) {
                     break;
             }
 
-        } else {
+        } else if (mode == Normal) {
 
             switch (c) {
                 case 'l':
@@ -275,70 +295,77 @@ int main(int argc, char *argv[]) {
                         refresh = true;
                     }
                     break;
+
+                case 'B': 
+                    current_file -= 1;
+                    refresh = true;
+                    break;
+                case 'N':
+                    current_file += 1;
+                    refresh = true;
+                    break;
                 case 'i':
                     // Switch to insert mode
-                    edit_mode = true;
+                    mode = Edit;
                     nibble_index = 0;
                     refresh = true;
                     break;
 
                 case 'w':
                     // Save file
-                    file = fopen(argv[1], "wb");
-                    fwrite(data, sizeof(uint8_t), file_size, file);
-                    fclose(file);
+                    f = fopen(argv[current_file + 1], "wb");
+                    fwrite(all_data[current_file], sizeof(uint8_t), all_size[current_file], f);
+                    fclose(f);
                     break;
-
                 case 'x':
                     // Cut byte on cursor position
-                    clipboard = data[cursor_index];
+                    clipboard = all_data[current_file][cursor_index];
                     for (int i = cursor_index; i < file_size - 1; i++) {
-                        data[i] = data[i+1];
+                        all_data[current_file][i] = all_data[current_file][i+1];
                     }
-                    file_size -= 1;
-                    data = realloc(data, file_size);
+                    all_size[current_file] -= 1;
+                    all_data[current_file] = realloc(all_data[current_file], all_size[current_file]);
                     refresh = true;
+                    break;
 
                 case 'y':
                     // Copy byte
-                    clipboard = data[cursor_index];
+                    clipboard = all_data[current_file][cursor_index];
                     break;
 
                 case 'p':
                     // Paste byte
-                    data[cursor_index] = clipboard;
+                    all_data[current_file][cursor_index] = clipboard;
                     cursor_index += 1;
                     refresh = true;
                     break;
                 case 'J':
-                    jump_mode = true;
+                    mode = Jump;
                     refresh = true;
                     break;
 
                 case 'a':
                     // Add byte after cursor position
-                    file_size += 1;
-                    data = realloc(data, file_size);
-                    data[file_size - 1] = 0;
-                    for (int i = file_size - 1; i > cursor_index + 1; i--) {
-                        data[i] = data[i-1];
+                    all_size[current_file] += 1;
+                    all_data[current_file] = realloc(all_data[current_file], all_size[current_file]);
+                    all_data[current_file][all_size[current_file] - 1] = 0;
+                    for (int i = all_size[current_file] - 1; i > cursor_index + 1; i--) {
+                        all_data[current_file][i] = all_data[current_file][i-1];
                     }
-                    data[cursor_index + 1] = 0;
+                    all_data[current_file][cursor_index + 1] = 0;
                     refresh = true;
                     break;
                 case 'q':
                     exit = true;
                     break;
-
-                case 27:
-                    edit_mode = false;
-                    refresh = true;
-                    break;
             }
         }
     }
 
-    free(data);
+    for (int i=0; i < argc - 1; i++) {
+        free(all_data[i]);
+    }
+    free(all_data);
     return 0;
 }
 
@@ -360,21 +387,21 @@ int valid_entry(char c) {
     return n;
 }
 
-void render_file(uint8_t *data, int file_size, char *file_name, uint32_t page, int cursor_index, bool edit_mode, bool jump_mode, uint32_t jump_address) {
+void render_file(uint8_t *data, int file_size, char *file_name, uint32_t page, int cursor_index, Mode mode, uint32_t jump_address) {
     bool end_of_line = false;
 
 
     render_title();
 
-    if (edit_mode) {
+    if (mode == Edit) {
         printf("\033[30C\033[38;5;208m -- EDIT --");
     }
-    else if (jump_mode) {
+    else if (mode == Jump) {
         printf("\033[30C\033[38;5;208mJump to %08x", jump_address);
     }
     printf("\n\033[38;5;43m%s\n", file_name);
     printf("size: \033[38;5;45m%i bytes\033[38;5;43m -- adress: \033[38;5;45m%08x \033[38;5;43m-- page: \033[38;5;45m%i / %i\n\033[0m",
-                file_size, cursor_index, page, file_size / PAGE_SIZE);
+            file_size, cursor_index, page, file_size / PAGE_SIZE);
 
     for (int i = page * PAGE_SIZE; i < (page + 1) * PAGE_SIZE && i < file_size; i++) {
         // Adress display
@@ -382,16 +409,16 @@ void render_file(uint8_t *data, int file_size, char *file_name, uint32_t page, i
             printf("\033[38;5;43m%08x:\033[0m ", i);
         } else if (i % 0x10 == 0 && i == 0) {
             printf("\033[38;5;43m00000000:\033[0m ");
-        
+
         }
 
         if (i % 2 == 0) {
             printf(" ");
         }
         // Set color for cursor
-        if (cursor_index == i && !edit_mode) {
+        if (cursor_index == i && (mode == Normal || mode == Jump)) {
             printf("\033[48;5;88m");
-        } else if (cursor_index == i && edit_mode) {
+        } else if (cursor_index == i && mode == Edit) {
             printf("\033[48;5;60m");
         } else if (is_printable_code(data[i])) {
             printf("\033[38;5;230m");
