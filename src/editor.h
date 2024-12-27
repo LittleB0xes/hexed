@@ -13,6 +13,7 @@ typedef enum Mode {
 } Mode;
 
 typedef struct Editor {
+    Mode mode;
     
 
     

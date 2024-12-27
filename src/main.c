@@ -5,6 +5,7 @@
 #include <stdlib.h>
 #include <termios.h>
 #include <unistd.h>
+#include <sys/ioctl.h>
 
 #include "editor.h"
 
@@ -12,7 +13,7 @@
 #define MAX_FILE 10
 
 
-void render_file(uint8_t *data, int file_size, char *file_name, uint32_t page, int cursor_index, Mode mode, uint32_t jump_address);
+void render_file(uint8_t *data, int file_size, char *file_name, uint32_t page, int cursor_index, Mode mode, uint32_t jump_address, int page_size);
 
 int valid_entry(char c);
 bool is_printable_code(uint8_t c);
@@ -77,9 +78,15 @@ int main(int argc, char *argv[]) {
     printf("\033[s");
 
     bool refresh = true;
+    bool show_title = true;
     bool exit = false;
 
+
     Mode mode = Normal;
+    struct winsize terminal_size;
+    ioctl(STDOUT_FILENO, TIOCGWINSZ, &terminal_size);
+    int previous_width = terminal_size.ws_row;
+    int page_size =  (terminal_size.ws_row - 12) * 16;
     
     uint32_t jump_address = 0;
 
@@ -104,9 +111,17 @@ int main(int argc, char *argv[]) {
 
         if (cursor_index < 0) { cursor_index = 0; }
         // Change page if necessary
-        if (cursor_index >= (page + 1) * PAGE_SIZE || cursor_index < page * PAGE_SIZE) {
-            page = cursor_index / PAGE_SIZE;
+        if (cursor_index >= (page + 1) * page_size || cursor_index < page * page_size) {
+            page = cursor_index / page_size;
             refresh = true;
+        }
+        ioctl(STDOUT_FILENO, TIOCGWINSZ, &terminal_size);
+        if (terminal_size.ws_row != previous_width) {
+            page_size =  (terminal_size.ws_row - 12) * 16;
+
+            refresh = true;
+            
+            previous_width = terminal_size.ws_row;
         }
         if (refresh) {
             // Clear string
@@ -114,9 +129,12 @@ int main(int argc, char *argv[]) {
 
             // Restore se saved position (staring postion, upper left)
             printf("\033[u");
+            if (show_title) {
+                render_title();
+            }
 
             // render_file(data, file_size, argv[1], page, cursor_index, edit_mode, jump_mode, jump_address);
-            render_file(all_data[current_file], all_size[current_file], argv[current_file + 1], page, cursor_index, mode, jump_address);
+            render_file(all_data[current_file], all_size[current_file], argv[current_file + 1], page, cursor_index, mode, jump_address, page_size);
             refresh = false;
         }
 
@@ -181,6 +199,9 @@ int main(int argc, char *argv[]) {
                     nibble_index = 0;
                     refresh = true;
                     break;
+                case 32:
+                    refresh = true;
+                    break;
 
             }
         } else if (mode == Jump) {
@@ -212,6 +233,9 @@ int main(int argc, char *argv[]) {
                     break;
                 case 'q':
                     exit = true;
+                    break;
+                case 32:
+                    refresh = true;
                     break;
             }
 
@@ -270,19 +294,19 @@ int main(int argc, char *argv[]) {
                     break;
                 case '[':
                     // Go to beginning of the page
-                    cursor_index = page * PAGE_SIZE;
+                    cursor_index = page * page_size;
                     refresh = true;
                     break;
                 case ']':
                     // Go to the end of the page
-                    cursor_index = page * PAGE_SIZE + 0xff;
+                    cursor_index = page * page_size + 0xff;
                     refresh = true;
                     break;
                 case 'n':
                     // Go to next page
 
-                    if (page < file_size / PAGE_SIZE) {
-                        cursor_index += PAGE_SIZE;
+                    if (page < file_size / page_size) {
+                        cursor_index += page_size;
                         page += 1;
                         refresh = true;
                     }
@@ -290,19 +314,23 @@ int main(int argc, char *argv[]) {
                 case 'b':
                     // Go to previous page
                     if (page > 0) {
-                        cursor_index -= PAGE_SIZE;
+                        cursor_index -= page_size;
                         page -= 1;
                         refresh = true;
                     }
                     break;
 
                 case 'B': 
-                    current_file -= 1;
-                    refresh = true;
+                    if (current_file > 0) {
+                        current_file -= 1;
+                        refresh = true;
+                    }
                     break;
                 case 'N':
-                    current_file += 1;
-                    refresh = true;
+                    if (current_file < file_number - 1) {
+                        current_file += 1;
+                        refresh = true;
+                    }
                     break;
                 case 'i':
                     // Switch to insert mode
@@ -355,9 +383,17 @@ int main(int argc, char *argv[]) {
                     all_data[current_file][cursor_index + 1] = 0;
                     refresh = true;
                     break;
+                case 9:
+                    show_title = !show_title;
+                    refresh = true;
+                    break;
                 case 'q':
                     exit = true;
                     break;
+                case 32:
+                    refresh = true;
+                    break;
+                    
             }
         }
     }
@@ -387,11 +423,10 @@ int valid_entry(char c) {
     return n;
 }
 
-void render_file(uint8_t *data, int file_size, char *file_name, uint32_t page, int cursor_index, Mode mode, uint32_t jump_address) {
+void render_file(uint8_t *data, int file_size, char *file_name, uint32_t page, int cursor_index, Mode mode, uint32_t jump_address, int page_size) {
     bool end_of_line = false;
 
 
-    render_title();
 
     if (mode == Edit) {
         printf("\033[30C\033[38;5;208m -- EDIT --");
@@ -401,9 +436,9 @@ void render_file(uint8_t *data, int file_size, char *file_name, uint32_t page, i
     }
     printf("\n\033[38;5;43m%s\n", file_name);
     printf("size: \033[38;5;45m%i bytes\033[38;5;43m -- adress: \033[38;5;45m%08x \033[38;5;43m-- page: \033[38;5;45m%i / %i\n\033[0m",
-            file_size, cursor_index, page, file_size / PAGE_SIZE);
+            file_size, cursor_index, page, file_size / page_size);
 
-    for (int i = page * PAGE_SIZE; i < (page + 1) * PAGE_SIZE && i < file_size; i++) {
+    for (int i = page * page_size; i < (page + 1) * page_size && i < file_size; i++) {
         // Adress display
         if (i % 0x10 == 0 && i != 0) {
             printf("\033[38;5;43m%08x:\033[0m ", i);
@@ -463,10 +498,10 @@ void render_title() {
     printf("    YP   YP Y88888P YP    YP Y88888P Y8888D'\n");
 
     printf("\n\033[38;5;43m");
-    printf("move: hjkl - beginning: g - end: G - beginning of line: ( - end of line: )\n");
-    printf("beginning of page: [ - end of page: ] - next page: n - previous page: b\n");
-    printf("edit: i - quit edit: ESC - save: w - quit: q\n");
-    printf("copy byte: y - cut byte: x - paste byte: p - add byte: a\n");
-
-    printf("\n");
+    // printf("move: hjkl - beginning: g - end: G - beginning of line: ( - end of line: )\n");
+    // printf("beginning of page: [ - end of page: ] - next page: n - previous page: b\n");
+    // printf("edit: i - quit edit: ESC - save: w - quit: q\n");
+    // printf("copy byte: y - cut byte: x - paste byte: p - add byte: a\n");
+    //
+    // printf("\n");
 }

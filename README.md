@@ -19,23 +19,27 @@ At the same time, I have the same project but in [Rust](https://github.com/Littl
 
 ## Command
 ```
-- hjkl        move 
-- g           move to the beginning of the file
-- G           move to the end of the file
-- (           move to the beginning of the line
-- )           move to the end of the line
-- [           move to the beginning of the page
-- ]           move to the end of the page
-- n           next page
-- b           previous page
-- J           jump to address
-- a           insert a byte after cursor position
-- x           cut a byte
-- y           copy a byte 
-- p           paste a byte
-- i           insert mode
-- <ESC>       quit insert mode
-- w           write file
-- q           quit
+- hjkl      move 
+- g         move to the beginning of the file
+- G         move to the end of the file
+- (         move to the beginning of the line
+- )         move to the end of the line
+- [         move to the beginning of the page
+- ]         move to the end of the page
+- n         next page
+- b         previous page
+- N         next file
+- P         previous file
+- J         jump to address
+- a         insert a byte after cursor position
+- x         cut a byte
+- y         copy a byte 
+- p         paste a byte
+- i         insert mode
+- <ESC>     quit insert mode
+- <SPACE>   force refresh
+- <TAB>     show / hide title
+- w         write file
+- q         quit
 ```
 
