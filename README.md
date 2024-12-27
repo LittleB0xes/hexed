@@ -13,9 +13,11 @@ YP   YP Y88888P YP    YP Y88888P Y8888D'
 At the same time, I have the same project but in [Rust](https://github.com/LittleB0xes/rhexed)
 
 ## Usage
-```
-./rhexed my_file
-```
+You can work on one file
+> ./rhexed my_file
+
+or, if you need, on several files in the same time, with the ability to navigate from file to file.
+> ./rhexed my_file_1 my_file_2 my_file_3 ...
 
 ## Command
 ```
