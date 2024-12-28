@@ -14,11 +14,13 @@ typedef enum Mode {
 
 typedef struct Editor {
     Mode mode;
-    
-
-    
+    uint32_t jump_address;
+    uint32_t page;
+    int nibble_index;
+    int cursor_index;
+    int size;
 } Editor;
 
-struct Editor *create_editor(char *file_name, uint8_t *data);
+
 #endif // !EDITOR_H
 
