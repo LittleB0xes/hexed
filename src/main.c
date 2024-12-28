@@ -9,16 +9,11 @@
 
 #include "editor.h"
 
-#define PAGE_SIZE 0x100
-#define MAX_FILE 10
-
-
 void render_file(uint8_t *data, Editor *editor, char *file_name, int page_size);
 
 int valid_entry(char c);
 bool is_printable_code(uint8_t c);
 void render_title();
-int data_index(int cursor_line, int cursor_char);
 
 
 struct termios orig_termios;
@@ -81,6 +76,20 @@ int main(int argc, char *argv[]) {
         };
     }
 
+
+    bool refresh = true;
+    bool show_title = true;
+    bool exit = false;
+
+
+    struct winsize terminal_size;
+    ioctl(STDOUT_FILENO, TIOCGWINSZ, &terminal_size);
+    int previous_width = terminal_size.ws_row;
+    int page_size =  (terminal_size.ws_row - 12) * 16;
+    
+    uint8_t clipboard = 0;
+    uint8_t current_file = 0;
+
     // Clear screen
     printf("\033[2J");
     // Set the starting postion
@@ -88,41 +97,15 @@ int main(int argc, char *argv[]) {
     // Store the starting position
     printf("\033[s");
 
-    bool refresh = true;
-    bool show_title = true;
-    bool exit = false;
-
-
-    Mode mode = Normal;
-    struct winsize terminal_size;
-    ioctl(STDOUT_FILENO, TIOCGWINSZ, &terminal_size);
-    int previous_width = terminal_size.ws_row;
-    int page_size =  (terminal_size.ws_row - 12) * 16;
-    
-    uint32_t jump_address = 0;
-
-
-    uint32_t page = 0;
-
-    uint8_t clipboard = 0;
-    int nibble_index = 0;
-
-    uint8_t current_file = 0;
-
-
-
-    int cursor_index = 0;
     //Main loop
-    // while (read(STDIN_FILENO, &c, 1) == 1 && c != 'q') {
     while (!exit) {
 
         Editor *editor = &all_editors[current_file];
-        int file_size = all_size[current_file];
 
         // Keep the cursor inside the bound
         if (editor->cursor_index > editor->size - 1) { editor->cursor_index = editor->size - 1; }
 
-        if (cursor_index < 0) { cursor_index = 0; }
+        if (editor->cursor_index < 0) { editor->cursor_index = 0; }
         // Change page if necessary
         if (editor->cursor_index >= (editor->page + 1) * page_size || editor->cursor_index < editor->page * page_size) {
             editor->page = editor->cursor_index / page_size;
@@ -385,14 +368,14 @@ int main(int argc, char *argv[]) {
                     break;
 
                 case 'a':
-                    // Add byte after cursor position
+                    // Add byte at cursor position
                     editor->size += 1;
                     all_data[current_file] = realloc(all_data[current_file], editor->size);
                     all_data[current_file][editor->size - 1] = 0;
-                    for (int i = editor->size - 1; i > editor->cursor_index + 1; i--) {
+                    for (int i = editor->size - 1; i > editor->cursor_index; i--) {
                         all_data[current_file][i] = all_data[current_file][i-1];
                     }
-                    all_data[current_file][editor->cursor_index + 1] = 0;
+                    all_data[current_file][editor->cursor_index] = 0;
                     refresh = true;
                     break;
                 case 9:
@@ -511,10 +494,4 @@ void render_title() {
     printf("    YP   YP Y88888P YP    YP Y88888P Y8888D'\n");
 
     printf("\n\033[38;5;43m");
-    // printf("move: hjkl - beginning: g - end: G - beginning of line: ( - end of line: )\n");
-    // printf("beginning of page: [ - end of page: ] - next page: n - previous page: b\n");
-    // printf("edit: i - quit edit: ESC - save: w - quit: q\n");
-    // printf("copy byte: y - cut byte: x - paste byte: p - add byte: a\n");
-    //
-    // printf("\n");
 }
