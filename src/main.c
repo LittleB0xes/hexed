@@ -8,6 +8,7 @@
 #include <unistd.h>
 #include <sys/ioctl.h>
 #include <wchar.h>
+#include "termbox2.h"
 
 #include "editor.h"
 
