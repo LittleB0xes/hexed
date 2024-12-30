@@ -1,3 +1,4 @@
+#define TB_IMPL
 #include <string.h>
 #include <stdbool.h>
 #include <stddef.h>
@@ -12,11 +13,11 @@
 
 #include "editor.h"
 
-void render_file(uint8_t *data, Editor *editor, char *file_name, uint32_t page_size);
+void render_file(uint8_t *data, Editor *editor, char *file_name, uint32_t page_size, int line);
 
 int valid_entry(char c);
 bool is_printable_code(uint8_t c);
-void render_title();
+int render_title(int line);
 
 
 struct termios orig_termios;
@@ -34,6 +35,7 @@ void enableRawMode() {
 int main(int argc, char *argv[]) {
 
     enableRawMode();
+    tb_init();
 
     int file_number = argc - 1;
     Editor *all_editors = (Editor*) malloc(file_number * sizeof(Editor));
@@ -83,8 +85,8 @@ int main(int argc, char *argv[]) {
     
     uint8_t clipboard = 0;
     uint8_t current_file = 0;
-
-
+    
+    struct tb_event e;
     //Main loop
     while (!exit) {
 
@@ -111,116 +113,117 @@ int main(int argc, char *argv[]) {
             previous_width = terminal_size.ws_row;
         }
         if (refresh) {
-            // Clear screen
-            printf("\033[2J");
-            // Set the starting postion
-            printf("\033[0;0f");
-            // Store the starting position
-            // printf("\033[s");
-
-            // Restore se saved position (staring postion, upper left)
-            // printf("\033[u");
+            tb_clear();
+            int line = 0;
             if (show_title) {
-                render_title();
+                line = render_title(line);
             }
 
-            render_file(editor->data, editor, argv[current_file + 1],page_size);
+            render_file(editor->data, editor, argv[current_file + 1],page_size, line);
+
+            tb_present();
             refresh = false;
         }
 
-        wchar_t c;
-        // read(STDIN_FILENO, &c, 1);
-        c = getwchar();
+        tb_poll_event(&e);
         if (editor->mode == Edit) {
-            if (enter_edit_hex(editor, c)) refresh = true;
-            switch (c) {
-                case 27:
-                    escape(editor);
-                    refresh = true;
+            if (enter_edit_hex(editor, e.ch)) refresh = true;
+            switch (e.key) {
+                case TB_KEY_ESC:
+                    switch_to_normal(editor);
+                    refresh = true;;
                     break;
-                case 17:
-                case 'l':
+                case TB_KEY_ARROW_RIGHT:
                     move_right(editor);
                     refresh = true;
                     break;
 
-                case 'h':
+                case TB_KEY_ARROW_LEFT:
                     move_left(editor);
                     refresh = true;
                     break;
 
-                case 'j':
+                case TB_KEY_ARROW_DOWN:
                     move_down(editor);
                     refresh = true;
                     break;
 
-                case 'k':
+                case TB_KEY_ARROW_UP:
                     move_up(editor);
                     refresh = true;
                     break;
-                case 32:
-                    refresh = true;
-                    break;
-
             }
         } else if (editor->mode == Jump) {
-            if (enter_address(editor, c)) refresh = true;
-            switch(c) {
-                case 27:
+            if (enter_address(editor, e.ch)) refresh = true;
+            switch (e.key) {
+                case TB_KEY_ESC:
                     switch_to_normal(editor);
                     refresh = true;;
                     break;
-                case '\n':
+                case TB_KEY_ENTER:
                     jump(editor);
                     refresh = true;;
                     break;
-                case 127:
+                case TB_KEY_BACKSPACE2:
+                case TB_KEY_BACKSPACE:
                     delete_address(editor);
                     refresh = true;
                     break;
-                case 'q':
-                    exit = true;
-                    break;
-                case 32:
-                    refresh = true;
-                    break;
-            }
-        } else if (editor->mode == AsciiEdit) {
-            switch (c) {
-                case 27:
-                    switch_to_normal(editor);
-                    refresh = true;
-                    break;
-                default: 
-                    refresh = enter_edit_ascii(editor, c);
-
             
             }
-
-
-        } else if (editor->mode == Normal) {
-
-            switch (c) {
-                case 'l':
+        } else if (editor->mode == AsciiEdit) {
+            refresh = enter_edit_ascii(editor, e.ch);
+            switch (e.key) {
+                case TB_KEY_ARROW_RIGHT:
                     move_right(editor);
                     refresh = true;
                     break;
 
-                case 'h':
+                case TB_KEY_ARROW_LEFT:
                     move_left(editor);
                     refresh = true;
                     break;
 
-                case 'j':
+                case TB_KEY_ARROW_DOWN:
                     move_down(editor);
                     refresh = true;
                     break;
 
-                case 'k':
+                case TB_KEY_ARROW_UP:
                     move_up(editor);
                     refresh = true;
                     break;
+                case TB_KEY_ESC:
+                    switch_to_normal(editor);
+                    refresh = true;;
+                    break;
+            }
 
+        } else if (editor->mode == Normal) {
+
+            switch (e.key) {
+                case TB_KEY_ARROW_RIGHT:
+                    move_right(editor);
+                    refresh = true;
+                    break;
+
+                case TB_KEY_ARROW_LEFT:
+                    move_left(editor);
+                    refresh = true;
+                    break;
+
+                case TB_KEY_ARROW_DOWN:
+                    move_down(editor);
+                    refresh = true;
+                    break;
+
+                case TB_KEY_ARROW_UP:
+                    move_up(editor);
+                    refresh = true;
+                    break;
+            }
+            switch (e.ch) {
+            
                 case 'g':
                     go_to_file_beginning(editor);
                     refresh = true;
@@ -323,10 +326,12 @@ int main(int argc, char *argv[]) {
         }
     }
 
+
     for (int i=0; i < argc - 1; i++) {
         free(all_editors[i].data);
     }
     free(all_editors);
+    tb_shutdown();
     return 0;
 }
 
@@ -348,79 +353,78 @@ int valid_entry(char c) {
     return n;
 }
 
-void render_file(uint8_t *data, Editor *editor, char *file_name, uint32_t page_size) {
+void render_file(uint8_t *data, Editor *editor, char *file_name, uint32_t page_size,int line) {
 
     if (editor->mode == Edit) {
-        printf("\033[30C\033[38;5;208m -- EDIT --");
+        tb_print(30, line, TB_MAGENTA, TB_DEFAULT, "-- EDIT --");
+        line++;
     }
     else if (editor->mode == Jump) {
-        printf("\033[30C\033[38;5;208mJump to %08x", editor->jump_address);
+        tb_printf(30, line, TB_MAGENTA, TB_DEFAULT, "Jump to %08x", editor->jump_address);
+        line++;
+    } else {
+        line++;
     }
-    printf("\n\033[38;5;43m%s\n", file_name);
-    printf("size: \033[38;5;45m%i bytes\033[38;5;43m -- adress: \033[38;5;45m%08x \033[38;5;43m-- editor->page: \033[38;5;45m%i / %i\n\033[0m",
-            editor->size, editor->cursor_index, editor->page, editor->size / page_size);
-
+    tb_printf(0, line++, TB_GREEN, TB_DEFAULT, "%s", file_name);
+    tb_printf(0, line++,TB_GREEN, TB_DEFAULT, "size: %i bytes -- adress: %08x -- page: %i / %i", editor->size, editor->cursor_index, editor->page, editor->size / page_size);
     for (uint32_t i = editor->page * page_size; i < (editor->page + 1) * page_size && i < editor->size; i++) {
         // Adress display
         if (i % 0x10 == 0 && i != 0) {
-            printf("\033[38;5;43m%08x:\033[0m ", i);
+            tb_printf(0, line + i / 0x10, TB_GREEN, TB_DEFAULT,"%08x: ", i);
+
         } else if (i % 0x10 == 0 && i == 0) {
-            printf("\033[38;5;43m00000000:\033[0m ");
+            // line++;
+            tb_printf(0, line + i / 0x10, TB_GREEN, TB_DEFAULT, "00000000: ");
 
         }
-
         if (i % 2 == 0) {
-            printf(" ");
+            // tb_print(i * 3, line, TB_DEFAULT, TB_DEFAULT," ");
         }
         // Set color for cursor
+        int fg_color = TB_DEFAULT;
+        int bg_color = TB_DEFAULT;
         if (editor->cursor_index == i && (editor->mode == Normal || editor->mode == Jump || editor->mode == AsciiEdit)) {
-            printf("\033[48;5;88m");
+            bg_color = TB_RED;
         } else if (editor->cursor_index == i && editor->mode == Edit) {
-            printf("\033[48;5;60m");
+            bg_color = TB_YELLOW;
         } else if (is_printable_code(data[i])) {
-            printf("\033[38;5;230m");
+            fg_color = TB_YELLOW;
         }
-        printf("%02x", data[i]);
-        printf("\033[0m");
+        tb_printf(15 + (i % 16) * 3, line + i / 0x10, fg_color, bg_color, "%02x", data[i]);
+        tb_print(15 + (i%16) * 3 + 2, line + i / 0x10, TB_DEFAULT, TB_DEFAULT, " ");
 
         // Print the char line on the right
         if (i % 0x10 == 15 || i == editor->size - 1) {
-            printf("\033[54G \033[38;5;43m| \033[0m ");
-            uint32_t current_line = i / 0x10;
-            for (uint32_t c = current_line * 0x10; c < 0x10 + current_line * 0x10 && c < editor->size;
-                    c++) {
-
+            tb_print(15 + 16 * 3 + 1, line + i / 0x10, TB_RED, TB_DEFAULT, "|");
+            uint32_t current_line = i / 0x10 ;
+            for (uint32_t c = current_line * 0x10; c < 0x10 + current_line * 0x10 && c < editor->size; c++) {
+                int fg_color = TB_DEFAULT;
+                int bg_color = TB_DEFAULT;
                 // Adjust cursor's color
                 if (editor->cursor_index == c && editor->mode == AsciiEdit) {
-                    printf("\033[48;5;60m");
+                    bg_color = TB_YELLOW;
                 } else if (editor->cursor_index == c) {
-                    printf("\033[48;5;88m");
+                    bg_color = TB_RED;
                 }
                 if (printable_ascii(data[c])) {
-                // if (is_printable_code(data[c])) {
-                    printf("\033[38;5;230m");
-                    printf("%c", data[c]);
+                    tb_printf(15 + 16 * 3 + 3 + c % 16, line + current_line,fg_color, bg_color, "%c", data[c]);
                 } else {
-                    printf(".");
+                    tb_print(15 + 16 * 3 + 3 + c % 16, line + current_line,fg_color, bg_color, ".");
                 }
-
-                // reset cursor color
-                printf("\033[0m");
             }
-            printf("\n");
         }
-    }
 
+    }
 }
 
 
-void render_title() {
-    printf("    db   db d88888b db    db d88888b d8888b.\n");
-    printf("    88   88 88'     `8b  d8' 88'     88  `8D\n");
-    printf("    88ooo88 88ooooo  `8bd8'  88ooooo 88   88\n");
-    printf("    88~~~88 88~~~~~  .dPYb.  88~~~~~ 88   88\n");
-    printf("    88   88 88.     .8P  Y8. 88.     88  .8D\n");
-    printf("    YP   YP Y88888P YP    YP Y88888P Y8888D'\n");
+int render_title(int line) {
+    tb_print(0, line, TB_MAGENTA, TB_DEFAULT,     "    db   db d88888b db    db d88888b d8888b.");
+    tb_print(0, line + 1, TB_MAGENTA, TB_DEFAULT, "    88   88 88'     `8b  d8' 88'     88  `8D");
+    tb_print(0, line + 2, TB_MAGENTA, TB_DEFAULT, "    88ooo88 88ooooo  `8bd8'  88ooooo 88   88");
+    tb_print(0, line + 3, TB_MAGENTA, TB_DEFAULT, "    88~~~88 88~~~~~  .dPYb.  88~~~~~ 88   88");
+    tb_print(0, line + 4, TB_MAGENTA, TB_DEFAULT, "    88   88 88.     .8P  Y8. 88.     88  .8D");
+    tb_print(0, line + 5, TB_MAGENTA, TB_DEFAULT, "    YP   YP Y88888P YP    YP Y88888P Y8888D'");
 
-    printf("\n\033[38;5;43m");
+    return line + 6;
 }
