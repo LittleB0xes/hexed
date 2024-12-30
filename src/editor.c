@@ -176,9 +176,9 @@ bool enter_edit_hex(Editor *editor, char c) {
     return false;
 }
 
-bool enter_edit_ascii(Editor *editor, wchar_t c) {
+bool enter_edit_ascii(Editor *editor, uint32_t c) {
     if (printable_ascii(c)) {
-        editor->data[editor->cursor_index] = c;
+        editor->data[editor->cursor_index] = (uint8_t) c;
         editor->cursor_index += 1;
         return true;
     }
@@ -187,8 +187,8 @@ bool enter_edit_ascii(Editor *editor, wchar_t c) {
 
 }
     
-bool printable_ascii(uint8_t c) {
-    return (c >= 32 && c < 127) || (c > 128 && c < 168);
+bool printable_ascii(uint32_t c) {
+    return (c >= 32 && c < 127) || (c > 128 && c < 254);
 }
 
     

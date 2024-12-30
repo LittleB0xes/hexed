@@ -52,7 +52,7 @@ void jump(Editor *editor);
 void delete_address(Editor *editor);
 bool enter_address(Editor *editor, char c);
 bool enter_edit_hex(Editor *editor, char c);
-bool enter_edit_ascii(Editor *editor, wchar_t c);
-bool printable_ascii(uint8_t c);
+bool enter_edit_ascii(Editor *editor, uint32_t c);
+bool printable_ascii(uint32_t c);
 #endif // !EDITOR_H
 

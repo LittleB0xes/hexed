@@ -11,6 +11,7 @@ YP   YP Y88888P YP    YP Y88888P Y8888D'
 # HexeD - a WIP hex file editor
 
 At the same time, I have the same project but in [Rust](https://github.com/LittleB0xes/rhexed)
+This project use [Termbox2](https://github.com/termbox/termbox2)
 
 ## Usage
 You can work on one file
@@ -21,7 +22,7 @@ or, if you need, on several files in the same time, with the ability to navigate
 
 ## Command
 ```
-- hjkl      move 
+- hjkl      move (arrows works too)
 - g         move to the beginning of the file
 - G         move to the end of the file
 - (         move to the beginning of the line
