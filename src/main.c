@@ -1,3 +1,4 @@
+#include <string.h>
 #include <stdbool.h>
 #include <stddef.h>
 #include <stdint.h>
@@ -6,10 +7,11 @@
 #include <termios.h>
 #include <unistd.h>
 #include <sys/ioctl.h>
+#include <wchar.h>
 
 #include "editor.h"
 
-void render_file(uint8_t *data, Editor *editor, char *file_name, int page_size);
+void render_file(uint8_t *data, Editor *editor, char *file_name, uint32_t page_size);
 
 int valid_entry(char c);
 bool is_printable_code(uint8_t c);
@@ -30,13 +32,10 @@ void enableRawMode() {
 
 int main(int argc, char *argv[]) {
 
-    FILE *f;
-
     enableRawMode();
 
     int file_number = argc - 1;
-    int *all_size = (int*) malloc(file_number * sizeof(int));
-    uint8_t **all_data = (uint8_t **) malloc(file_number * sizeof(uint8_t*));
+    Editor *all_editors = (Editor*) malloc(file_number * sizeof(Editor));
     for (int i = 1; i <= file_number; i++) {
         FILE *f;
         f = fopen(argv[i], "rb");
@@ -60,22 +59,16 @@ int main(int argc, char *argv[]) {
         fclose(f);
 
         // Store file data
-        all_data[i-1] = data;
-        all_size[i - 1] = file_size;
-    }
-
-    Editor *all_editors = (Editor*) malloc(file_number * sizeof(Editor));
-    for (int i = 0; i < file_number; i++) {
-        all_editors[i] = (Editor) {
-            .mode= Normal,
+        all_editors[i-1] = (Editor) {
+                .mode= Normal,
                 .page = 0,
-                .size = all_size[i],
+                .size = file_size,
                 .cursor_index = 0,
                 .nibble_index = 0,
                 .jump_address = 0,
+                .data = data,
         };
     }
-
 
     bool refresh = true;
     bool show_title = true;
@@ -90,12 +83,6 @@ int main(int argc, char *argv[]) {
     uint8_t clipboard = 0;
     uint8_t current_file = 0;
 
-    // Clear screen
-    printf("\033[2J");
-    // Set the starting postion
-    printf("\033[0;0f");
-    // Store the starting position
-    printf("\033[s");
 
     //Main loop
     while (!exit) {
@@ -111,6 +98,9 @@ int main(int argc, char *argv[]) {
             editor->page = editor->cursor_index / page_size;
             refresh = true;
         }
+
+
+        // check terminal size
         ioctl(STDOUT_FILENO, TIOCGWINSZ, &terminal_size);
         if (terminal_size.ws_row != previous_width) {
             page_size =  (terminal_size.ws_row - 12) * 16;
@@ -120,78 +110,51 @@ int main(int argc, char *argv[]) {
             previous_width = terminal_size.ws_row;
         }
         if (refresh) {
-            // Clear string
+            // Clear screen
             printf("\033[2J");
+            // Set the starting postion
+            printf("\033[0;0f");
+            // Store the starting position
+            // printf("\033[s");
 
             // Restore se saved position (staring postion, upper left)
-            printf("\033[u");
+            // printf("\033[u");
             if (show_title) {
                 render_title();
             }
 
-            render_file(all_data[current_file], editor, argv[current_file + 1],page_size);
+            render_file(editor->data, editor, argv[current_file + 1],page_size);
             refresh = false;
         }
 
-        char c;
-        read(STDIN_FILENO, &c, 1);
+        wchar_t c;
+        // read(STDIN_FILENO, &c, 1);
+        c = getwchar();
         if (editor->mode == Edit) {
-            uint8_t n;
-            bool valid_entry = false;
-            if (c >= 48 && c <= 57) {
-                n = c - 48;
-                valid_entry = true;
-            } else if (c >= 97 && c <= 102) {
-                n = c - 87;
-                valid_entry = true;
-            }
-            if (valid_entry) {
-                uint8_t nibble_bits = n << 4 * (1 - editor->nibble_index);
-                uint8_t mask = 0x0F << 4 * editor->nibble_index;
-                all_data[current_file][editor->cursor_index] &= mask;
-                all_data[current_file][editor->cursor_index] |= nibble_bits;
-                editor->nibble_index += 1;
-                if (editor->nibble_index > 1) {
-                    editor->nibble_index = 0;
-                    editor->cursor_index += 1;
-                }
-            }
-            refresh = true;
+            if (enter_edit_hex(editor, c)) refresh = true;
             switch (c) {
                 case 27:
-                    editor->nibble_index = 0;
+                    escape(editor);
                     refresh = true;
-                    editor->mode = Normal;
                     break;
+                case 17:
                 case 'l':
-                    if (editor->cursor_index < editor->size - 1) {
-                        editor->cursor_index += 1;
-                    }
-                    editor->nibble_index = 0;
+                    move_right(editor);
                     refresh = true;
                     break;
 
                 case 'h':
-                    if (editor->cursor_index > 0) {
-                        editor->cursor_index -= 1;
-                    }
-                    editor->nibble_index = 0;
+                    move_left(editor);
                     refresh = true;
                     break;
 
                 case 'j':
-                    if (editor->cursor_index < editor->size - 16) {
-                        editor->cursor_index += 16;
-                    }
-                    editor->nibble_index = 0;
+                    move_down(editor);
                     refresh = true;
                     break;
 
                 case 'k':
-                    if (editor->cursor_index >= 16) {
-                        editor->cursor_index -= 16;
-                    }
-                    editor->nibble_index = 0;
+                    move_up(editor);
                     refresh = true;
                     break;
                 case 32:
@@ -200,30 +163,18 @@ int main(int argc, char *argv[]) {
 
             }
         } else if (editor->mode == Jump) {
-            if (c >= 48 && c <= 57) {
-                int n = c - 48;
-                editor->jump_address <<= 4;
-                editor->jump_address += n;
-                refresh = true;
-            } else if (c >= 97 && c <= 102) {
-                int n = c - 87;
-                editor->jump_address <<= 4;
-                editor->jump_address += n;
-                refresh = true;
-            }
+            if (enter_address(editor, c)) refresh = true;
             switch(c) {
                 case 27:
-                    editor->mode = Normal;
+                    switch_to_normal(editor);
                     refresh = true;;
                     break;
                 case '\n':
-                    editor->mode = Normal;
-                    editor->cursor_index = editor->jump_address;
-                    editor->jump_address = 0;
+                    jump(editor);
                     refresh = true;;
                     break;
                 case 127:
-                    editor->jump_address >>= 4;
+                    delete_address(editor);
                     refresh = true;
                     break;
                 case 'q':
@@ -233,149 +184,127 @@ int main(int argc, char *argv[]) {
                     refresh = true;
                     break;
             }
+        } else if (editor->mode == AsciiEdit) {
+            switch (c) {
+                case 27:
+                    switch_to_normal(editor);
+                    refresh = true;
+                    break;
+                default: 
+                    refresh = enter_edit_ascii(editor, c);
+
+            
+            }
+
 
         } else if (editor->mode == Normal) {
 
             switch (c) {
                 case 'l':
-                    if (editor->cursor_index < editor->size - 1) {
-                        editor->cursor_index += 1;
-                    }
+                    move_right(editor);
                     refresh = true;
                     break;
 
                 case 'h':
-                    if (editor->cursor_index > 0) {
-                        editor->cursor_index -= 1;
-                    }
+                    move_left(editor);
                     refresh = true;
                     break;
 
                 case 'j':
-                    if (editor->cursor_index < editor->size - 16) {
-                        editor->cursor_index += 16;
-                    }
+                    move_down(editor);
                     refresh = true;
                     break;
 
                 case 'k':
-                    if (editor->cursor_index >= 16) {
-                        editor->cursor_index -= 16;
-                    }
+                    move_up(editor);
                     refresh = true;
                     break;
 
                 case 'g':
-                    // Go to the beginning of the file
-                    editor->cursor_index = 0;
+                    go_to_file_beginning(editor);
                     refresh = true;
                     break;
 
                 case 'G':
                     // Go to the end of the file
-                    editor->cursor_index = editor->size - 1;
+                    go_to_file_end(editor);
                     refresh = true;
                     break;
                 case '(':
                     // Go to the beginning of the line
-                    editor->cursor_index = editor->cursor_index / 16 * 16;
+                    go_to_line_beginning(editor);
                     refresh = true;
                     break;
 
                 case ')':
+                    go_to_file_end(editor);
                     // Go to the end of the line
-                    editor->cursor_index = editor->cursor_index / 16 * 16 + 15;
                     refresh = true;
                     break;
                 case '[':
                     // Go to beginning of the editor->page
-                    editor->cursor_index = editor->page * page_size;
+                    go_to_page_beginning(editor, page_size);
                     refresh = true;
                     break;
                 case ']':
                     // Go to the end of the editor->page
-                    editor->cursor_index = editor->page * page_size + 0xff;
+                    go_to_page_end(editor, page_size);
                     refresh = true;
                     break;
                 case 'n':
                     // Go to next editor->page
+                    go_to_next_page(editor, page_size);
 
-                    if (editor->page < editor->size / page_size) {
-                        editor->cursor_index += page_size;
-                        editor->page += 1;
-                        refresh = true;
-                    }
+                    refresh = true;
                     break;
                 case 'b':
                     // Go to previous editor->page
-                    if (editor->page > 0) {
-                        editor->cursor_index -= page_size;
-                        editor->page -= 1;
-                        refresh = true;
-                    }
-                    break;
-
-                case 'B': 
-                    if (current_file > 0) {
-                        current_file -= 1;
-                        refresh = true;
-                    }
-                    break;
-                case 'N':
-                    if (current_file < file_number - 1) {
-                        current_file += 1;
-                        refresh = true;
-                    }
-                    break;
-                case 'i':
-                    // Switch to insert editor->mode
-                    editor->mode = Edit;
-                    editor->nibble_index = 0;
+                    go_to_previous_page(editor, page_size);
                     refresh = true;
                     break;
 
+                case 'B': 
+                    current_file = previous_file(current_file);
+                    refresh = true;
+                    break;
+                case 'N':
+                    current_file = next_file(current_file, file_number);
+                    refresh = true;
+                    break;
+                case 'i':
+                    switch_to_edit(editor);
+                    refresh = true;
+                    break;
+                case 'I':
+                    switch_to_ascii_edit(editor);
+                    refresh = true;
+                    break;
                 case 'w':
-                    // Save file
-                    f = fopen(argv[current_file + 1], "wb");
-                    fwrite(all_data[current_file], sizeof(uint8_t), editor->size, f);
-                    fclose(f);
+                    save_file(editor, argv[current_file + 1]);
                     break;
                 case 'x':
                     // Cut byte on cursor position
-                    clipboard = all_data[current_file][editor->cursor_index];
-                    for (int i = editor->cursor_index; i < editor->size - 1; i++) {
-                        all_data[current_file][i] = all_data[current_file][i+1];
-                    }
-                    editor->size -= 1;
-                    all_data[current_file] = realloc(all_data[current_file], editor->size);
+                    clipboard = cut_byte(editor);
                     refresh = true;
                     break;
 
                 case 'y':
                     // Copy byte
-                    clipboard = all_data[current_file][editor->cursor_index];
+                    clipboard = copy_byte(editor);
                     break;
 
                 case 'p':
                     // Paste byte
-                    all_data[current_file][editor->cursor_index] = clipboard;
-                    editor->cursor_index += 1;
+                    paste_byte(editor, clipboard);
                     refresh = true;
                     break;
                 case 'J':
-                    editor->mode = Jump;
+                    switch_to_jump(editor);
                     refresh = true;
                     break;
 
                 case 'a':
-                    // Add byte at cursor position
-                    editor->size += 1;
-                    all_data[current_file] = realloc(all_data[current_file], editor->size);
-                    all_data[current_file][editor->size - 1] = 0;
-                    for (int i = editor->size - 1; i > editor->cursor_index; i--) {
-                        all_data[current_file][i] = all_data[current_file][i-1];
-                    }
-                    all_data[current_file][editor->cursor_index] = 0;
+                    add_byte(editor);
                     refresh = true;
                     break;
                 case 9:
@@ -393,11 +322,10 @@ int main(int argc, char *argv[]) {
         }
     }
 
-    free(all_editors);
     for (int i=0; i < argc - 1; i++) {
-        free(all_data[i]);
+        free(all_editors[i].data);
     }
-    free(all_data);
+    free(all_editors);
     return 0;
 }
 
@@ -419,10 +347,7 @@ int valid_entry(char c) {
     return n;
 }
 
-void render_file(uint8_t *data, Editor *editor, char *file_name, int page_size) {
-    bool end_of_line = false;
-
-
+void render_file(uint8_t *data, Editor *editor, char *file_name, uint32_t page_size) {
 
     if (editor->mode == Edit) {
         printf("\033[30C\033[38;5;208m -- EDIT --");
@@ -434,7 +359,7 @@ void render_file(uint8_t *data, Editor *editor, char *file_name, int page_size) 
     printf("size: \033[38;5;45m%i bytes\033[38;5;43m -- adress: \033[38;5;45m%08x \033[38;5;43m-- editor->page: \033[38;5;45m%i / %i\n\033[0m",
             editor->size, editor->cursor_index, editor->page, editor->size / page_size);
 
-    for (int i = editor->page * page_size; i < (editor->page + 1) * page_size && i < editor->size; i++) {
+    for (uint32_t i = editor->page * page_size; i < (editor->page + 1) * page_size && i < editor->size; i++) {
         // Adress display
         if (i % 0x10 == 0 && i != 0) {
             printf("\033[38;5;43m%08x:\033[0m ", i);
@@ -447,7 +372,7 @@ void render_file(uint8_t *data, Editor *editor, char *file_name, int page_size) 
             printf(" ");
         }
         // Set color for cursor
-        if (editor->cursor_index == i && (editor->mode == Normal || editor->mode == Jump)) {
+        if (editor->cursor_index == i && (editor->mode == Normal || editor->mode == Jump || editor->mode == AsciiEdit)) {
             printf("\033[48;5;88m");
         } else if (editor->cursor_index == i && editor->mode == Edit) {
             printf("\033[48;5;60m");
@@ -460,15 +385,18 @@ void render_file(uint8_t *data, Editor *editor, char *file_name, int page_size) 
         // Print the char line on the right
         if (i % 0x10 == 15 || i == editor->size - 1) {
             printf("\033[54G \033[38;5;43m| \033[0m ");
-            int current_line = i / 0x10;
-            for (int c = current_line * 0x10; c < 0x10 + current_line * 0x10 && c < editor->size;
+            uint32_t current_line = i / 0x10;
+            for (uint32_t c = current_line * 0x10; c < 0x10 + current_line * 0x10 && c < editor->size;
                     c++) {
 
                 // Adjust cursor's color
-                if (editor->cursor_index == c) {
+                if (editor->cursor_index == c && editor->mode == AsciiEdit) {
+                    printf("\033[48;5;60m");
+                } else if (editor->cursor_index == c) {
                     printf("\033[48;5;88m");
                 }
-                if (is_printable_code(data[c])) {
+                if (printable_ascii(data[c])) {
+                // if (is_printable_code(data[c])) {
                     printf("\033[38;5;230m");
                     printf("%c", data[c]);
                 } else {

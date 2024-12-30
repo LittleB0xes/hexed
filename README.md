@@ -38,6 +38,7 @@ or, if you need, on several files in the same time, with the ability to navigate
 - y         copy a byte 
 - p         paste a byte
 - i         insert mode
+- I         insert mode (in ascii) -- but not accented or other local stuffs :-(
 - <ESC>     quit insert mode
 - <SPACE>   force refresh
 - <TAB>     show / hide title
