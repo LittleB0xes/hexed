@@ -5,7 +5,6 @@
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
-#include <termios.h>
 #include <unistd.h>
 #include <sys/ioctl.h>
 #include <wchar.h>
@@ -20,21 +19,8 @@ bool is_printable_code(uint8_t c);
 int render_title(int line);
 
 
-struct termios orig_termios;
-
-
-void disableRawMode() { tcsetattr(STDIN_FILENO, TCSAFLUSH, &orig_termios); }
-void enableRawMode() {
-    tcgetattr(STDIN_FILENO, &orig_termios);
-    atexit(disableRawMode);
-    struct termios raw = orig_termios;
-    raw.c_lflag &= ~(ECHO | ICANON);
-    tcsetattr(STDIN_FILENO, TCSAFLUSH, &raw);
-}
 
 int main(int argc, char *argv[]) {
-
-    enableRawMode();
     tb_init();
 
     int file_number = argc - 1;
@@ -223,6 +209,25 @@ int main(int argc, char *argv[]) {
                     break;
             }
             switch (e.ch) {
+                case 'l':
+                    move_right(editor);
+                    refresh = true;
+                    break;
+
+                case 'h':
+                    move_left(editor);
+                    refresh = true;
+                    break;
+
+                case 'j':
+                    move_down(editor);
+                    refresh = true;
+                    break;
+
+                case 'k':
+                    move_up(editor);
+                    refresh = true;
+                    break;
             
                 case 'g':
                     go_to_file_beginning(editor);
@@ -387,7 +392,7 @@ void render_file(uint8_t *data, Editor *editor, char *file_name, uint32_t page_s
             bg_color = TB_RED;
         } else if (editor->cursor_index == i && editor->mode == Edit) {
             bg_color = TB_YELLOW;
-        } else if (is_printable_code(data[i])) {
+        } else if (printable_ascii(data[i])) {
             fg_color = TB_YELLOW;
         }
         tb_printf(15 + (i % 16) * 3, line + i / 0x10, fg_color, bg_color, "%02x", data[i]);
@@ -407,7 +412,10 @@ void render_file(uint8_t *data, Editor *editor, char *file_name, uint32_t page_s
                     bg_color = TB_RED;
                 }
                 if (printable_ascii(data[c])) {
-                    tb_printf(15 + 16 * 3 + 3 + c % 16, line + current_line,fg_color, bg_color, "%c", data[c]);
+                    fg_color = TB_YELLOW;
+                    // tb_printf(15 + 16 * 3 + 3 + c % 16, line + current_line,fg_color, bg_color, "%c", data[c]);
+                    uint32_t lc = data[c];
+                    tb_set_cell_ex(15 + 16 * 3 + 3 + c % 16, line + current_line, &lc,2,fg_color, bg_color);
                 } else {
                     tb_print(15 + 16 * 3 + 3 + c % 16, line + current_line,fg_color, bg_color, ".");
                 }

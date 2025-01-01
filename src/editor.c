@@ -178,13 +178,11 @@ bool enter_edit_hex(Editor *editor, char c) {
 
 bool enter_edit_ascii(Editor *editor, uint32_t c) {
     if (printable_ascii(c)) {
-        editor->data[editor->cursor_index] = (uint8_t) c;
+        editor->data[editor->cursor_index] =  (uint8_t) c;
         editor->cursor_index += 1;
         return true;
     }
-
     return false;
-
 }
     
 bool printable_ascii(uint32_t c) {
