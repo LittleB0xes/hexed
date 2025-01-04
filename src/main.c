@@ -1,3 +1,4 @@
+#include "array.h"
 #define TB_IMPL
 #include <string.h>
 #include <stdbool.h>
@@ -11,13 +12,13 @@
 #include "termbox2.h"
 
 #include "editor.h"
+#include "array.h"
 
 void render_file(uint8_t *data, Editor *editor, char *file_name, uint32_t page_size, int line);
 
 int valid_entry(char c);
 bool is_printable_code(uint8_t c);
 int render_title(int line);
-
 
 
 int main(int argc, char *argv[]) {
@@ -56,6 +57,8 @@ int main(int argc, char *argv[]) {
                 .nibble_index = 0,
                 .jump_address = 0,
                 .data = data,
+                .search_result = new_dynamic_array(),
+                .search_pattern = new_dynamic_array()
         };
     }
 
@@ -153,6 +156,24 @@ int main(int argc, char *argv[]) {
                 case TB_KEY_BACKSPACE2:
                 case TB_KEY_BACKSPACE:
                     delete_address(editor);
+                    refresh = true;
+                    break;
+            
+            }
+        } else if (editor->mode == Search) {
+            if (search_input(editor, e.ch)) refresh = true;
+            switch (e.key) {
+                case TB_KEY_ESC:
+                    switch_to_normal(editor);
+                    refresh = true;;
+                    break;
+                case TB_KEY_ENTER:
+                    refresh = true;;
+                    search_pattern(editor);
+                    break;
+                case TB_KEY_BACKSPACE2:
+                case TB_KEY_BACKSPACE:
+                    pop(editor->search_pattern);
                     refresh = true;
                     break;
             
@@ -311,6 +332,10 @@ int main(int argc, char *argv[]) {
                     switch_to_jump(editor);
                     refresh = true;
                     break;
+                case 's':
+                    switch_to_search(editor);
+                    refresh = true;
+                    break;
 
                 case 'a':
                     add_byte(editor);
@@ -333,7 +358,7 @@ int main(int argc, char *argv[]) {
 
 
     for (int i=0; i < argc - 1; i++) {
-        free(all_editors[i].data);
+        free_editor(all_editors[i]);
     }
     free(all_editors);
     tb_shutdown();
@@ -366,6 +391,12 @@ void render_file(uint8_t *data, Editor *editor, char *file_name, uint32_t page_s
     }
     else if (editor->mode == Jump) {
         tb_printf(30, line, TB_MAGENTA, TB_DEFAULT, "Jump to %08x", editor->jump_address);
+        line++;
+    }
+    else if (editor->mode == Search) {
+        tb_printf(30, line, TB_MAGENTA, TB_DEFAULT, "Search ");
+        for (int i = 0; i < editor->search_pattern->size; i++)
+            tb_printf(37 + 3*i, line, TB_MAGENTA, TB_DEFAULT, "%02x ", editor->search_pattern->data[i]);
         line++;
     } else {
         line++;

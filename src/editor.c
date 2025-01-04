@@ -1,10 +1,15 @@
 #include "editor.h"
+#include "array.h"
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdbool.h>
-#include <wchar.h>
 
+void free_editor(Editor editor) {
+        free_array(editor.search_pattern);
+        free_array(editor.search_result);
+        free(editor.data);
+}
 void escape(Editor *editor) {
     editor->nibble_index = 0;
     editor->mode = Normal;
@@ -90,6 +95,9 @@ void switch_to_ascii_edit(Editor *editor) {
 }
 void switch_to_jump(Editor *editor) {
     editor->mode = Jump;
+}
+void switch_to_search(Editor *editor) {
+    editor->mode = Search;
 }
 void switch_to_normal(Editor *editor) {
     editor->mode = Normal;
@@ -189,5 +197,46 @@ bool printable_ascii(uint32_t c) {
     return (c >= 32 && c < 127) || (c > 128 && c < 254);
 }
 
+bool search_input(Editor *editor, char c) {
+    uint8_t n;
+    bool valid_entry = false;
+    if (c >= 48 && c <= 57) {
+        n = c - 48;
+        valid_entry = true;
+    } else if (c >= 97 && c <= 102) {
+        n = c - 87;
+        valid_entry = true;
+    }
+    if (valid_entry) {
+        if (editor->nibble_index == 0)
+            append(editor->search_pattern, 0);
+
+        uint8_t nibble_bits = n << 4 * (1 - editor->nibble_index);
+        uint8_t mask = 0x0F << 4 * editor->nibble_index;
+        editor->search_pattern->data[editor->search_pattern->size - 1] &= mask;
+        editor->search_pattern->data[editor->search_pattern->size - 1] |= nibble_bits;
+        editor->nibble_index += 1;
+        if (editor->nibble_index > 1) {
+            editor->nibble_index = 0;
+        }
+    }
+    return valid_entry;
+}
     
+void search_pattern(Editor *editor) {
+
+        clear(editor->search_result);
+
+        for (uint32_t i = 0; i < editor->size; i++) {
+            bool flag = true;
+            for (uint32_t j = 0; j < editor->search_pattern->size; j++) {
+                if (editor->data[i + j] != editor->search_pattern->data[j]) { 
+                    flag = false;
+                    break;
+                }
+            }
+            if (flag) 
+                append(editor->search_result, i);
+        }
+}
 
