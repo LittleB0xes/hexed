@@ -5,6 +5,43 @@
 #include <stdlib.h>
 #include <stdbool.h>
 
+Editor load_editor(const char* file_name) {
+    FILE *f;
+    f = fopen(file_name, "rb");
+    if (f == NULL) {
+        printf("ERROR - Could not open file %s", file_name);
+        exit(-1);
+    }
+
+
+    // Find the file's size
+    fseek(f, 0, SEEK_END);
+    int file_size = ftell(f);
+
+    // // Rewind
+    fseek(f, 0, SEEK_SET);
+    // Allocate some memory for the reading file
+    uint8_t *data = (uint8_t *)malloc(sizeof(uint8_t) * file_size);
+
+    // Read the data from file
+    // And store it in data
+    fread(data, sizeof(uint8_t), file_size, f);
+    fclose(f);
+
+    // Store file data
+    return (Editor) {
+        .mode= Normal,
+            .page = 0,
+            .size = file_size,
+            .cursor_index = 0,
+            .nibble_index = 0,
+            .jump_address = 0,
+            .data = data,
+            .search_result = new_dynamic_array(),
+            .search_pattern = new_dynamic_array(),
+            .result_index = 0,
+    };
+}
 void free_editor(Editor editor) {
         free_array(editor.search_pattern);
         free_array(editor.search_result);
@@ -240,3 +277,25 @@ void search_pattern(Editor *editor) {
         }
 }
 
+void go_to_next_result(Editor *editor) {
+    if (is_empty(editor->search_result))
+        return;
+    
+    for (size_t i = 0; i < editor->search_result->size; i++) {
+        if (editor->search_result->data[i] > editor->cursor_index) {
+            editor->cursor_index = editor->search_result->data[i];
+            return;
+        }
+    }
+}
+void go_to_previous_result(Editor *editor) {
+    if (is_empty(editor->search_result))
+        return;
+
+    for (size_t i = 0; i < editor->search_result->size; i++) {
+        if (editor->search_result->data[editor->search_result->size - 1 - i] < editor->cursor_index) {
+            editor->cursor_index = editor->search_result->data[editor->search_result->size - 1 - i];
+            return;
+        }
+    }
+}

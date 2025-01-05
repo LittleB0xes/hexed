@@ -1,14 +1,10 @@
 #include "array.h"
 #define TB_IMPL
-#include <string.h>
 #include <stdbool.h>
-#include <stddef.h>
 #include <stdint.h>
-#include <stdio.h>
 #include <stdlib.h>
 #include <unistd.h>
 #include <sys/ioctl.h>
-#include <wchar.h>
 #include "termbox2.h"
 
 #include "editor.h"
@@ -22,46 +18,14 @@ int render_title(int line);
 
 
 int main(int argc, char *argv[]) {
-    tb_init();
 
     int file_number = argc - 1;
     Editor *all_editors = (Editor*) malloc(file_number * sizeof(Editor));
     for (int i = 1; i <= file_number; i++) {
-        FILE *f;
-        f = fopen(argv[i], "rb");
-        if (f == NULL) {
-            printf("ERROR - Could not open file : %s", argv[1]);
-            return -1;
-        }
-
-        // Find the file's size
-        fseek(f, 0, SEEK_END);
-        int file_size = ftell(f);
-
-        // // Rewind
-        fseek(f, 0, SEEK_SET);
-        // Allocate some memory for the reading file
-        uint8_t *data = (uint8_t *)malloc(sizeof(uint8_t) * file_size);
-
-        // Read the data from file
-        // And store it in data
-        fread(data, sizeof(uint8_t), file_size, f);
-        fclose(f);
-
-        // Store file data
-        all_editors[i-1] = (Editor) {
-                .mode= Normal,
-                .page = 0,
-                .size = file_size,
-                .cursor_index = 0,
-                .nibble_index = 0,
-                .jump_address = 0,
-                .data = data,
-                .search_result = new_dynamic_array(),
-                .search_pattern = new_dynamic_array()
-        };
+        all_editors[i-1] = load_editor(argv[i]);
     }
 
+    tb_init();
     bool refresh = true;
     bool show_title = true;
     bool exit = false;
@@ -169,6 +133,7 @@ int main(int argc, char *argv[]) {
                     break;
                 case TB_KEY_ENTER:
                     refresh = true;;
+                    switch_to_normal(editor);
                     search_pattern(editor);
                     break;
                 case TB_KEY_BACKSPACE2:
@@ -279,6 +244,16 @@ int main(int argc, char *argv[]) {
                 case ']':
                     // Go to the end of the editor->page
                     go_to_page_end(editor, page_size);
+                    refresh = true;
+                    break;
+                case '>':
+                    // Go to the next Result
+                    go_to_next_result(editor);
+                    refresh = true;
+                    break;
+                case '<':
+                    // Go to the previous result 
+                    go_to_previous_result(editor);
                     refresh = true;
                     break;
                 case 'n':
@@ -403,14 +378,15 @@ void render_file(uint8_t *data, Editor *editor, char *file_name, uint32_t page_s
     }
     tb_printf(0, line++, TB_GREEN, TB_DEFAULT, "%s", file_name);
     tb_printf(0, line++,TB_GREEN, TB_DEFAULT, "size: %i bytes -- adress: %08x -- page: %i / %i", editor->size, editor->cursor_index, editor->page, editor->size / page_size);
+
     for (uint32_t i = editor->page * page_size; i < (editor->page + 1) * page_size && i < editor->size; i++) {
         // Adress display
         if (i % 0x10 == 0 && i != 0) {
-            tb_printf(0, line + i / 0x10, TB_GREEN, TB_DEFAULT,"%08x: ", i);
+            tb_printf(0, line + (i - editor->page * page_size) / 0x10, TB_GREEN, TB_DEFAULT,"%08x: ", i);
 
         } else if (i % 0x10 == 0 && i == 0) {
             // line++;
-            tb_printf(0, line + i / 0x10, TB_GREEN, TB_DEFAULT, "00000000: ");
+            tb_printf(0, line + (i - editor->page * page_size) / 0x10, TB_GREEN, TB_DEFAULT, "00000000: ");
 
         }
         if (i % 2 == 0) {
@@ -426,13 +402,30 @@ void render_file(uint8_t *data, Editor *editor, char *file_name, uint32_t page_s
         } else if (printable_ascii(data[i])) {
             fg_color = TB_YELLOW;
         }
-        tb_printf(15 + (i % 16) * 3, line + i / 0x10, fg_color, bg_color, "%02x", data[i]);
-        tb_print(15 + (i%16) * 3 + 2, line + i / 0x10, TB_DEFAULT, TB_DEFAULT, " ");
+        
+
+        // Highlight search_result-
+        if (i != editor->cursor_index && editor->mode == Normal && !is_empty(editor->search_pattern) && !is_empty(editor->search_result)) {
+            for (int j = 0; j < editor->search_pattern->size; j++) {
+                if (i-j >= 0) {
+                    Result pat_index = find(editor->search_result,i-j);
+                    if (pat_index.res) {
+                            bg_color = TB_YELLOW;
+                            fg_color = TB_BLACK;
+                    }
+                }
+            }
+        }
+
+
+        tb_printf(15 + (i % 16) * 3, line + (i - editor->page * page_size) / 0x10, fg_color, bg_color, "%02x", data[i]);
+        tb_print(15 + (i%16) * 3 + 2, line + (i - editor->page * page_size) / 0x10, TB_DEFAULT, TB_DEFAULT, " ");
+
 
         // Print the char line on the right
         if (i % 0x10 == 15 || i == editor->size - 1) {
-            tb_print(15 + 16 * 3 + 1, line + i / 0x10, TB_RED, TB_DEFAULT, "|");
-            uint32_t current_line = i / 0x10 ;
+            tb_print(15 + 16 * 3 + 1, line + (i - editor->page * page_size) / 0x10, TB_RED, TB_DEFAULT, "|");
+            uint32_t current_line = (i - editor->page * page_size) / 0x10 ;
             for (uint32_t c = current_line * 0x10; c < 0x10 + current_line * 0x10 && c < editor->size; c++) {
                 int fg_color = TB_DEFAULT;
                 int bg_color = TB_DEFAULT;

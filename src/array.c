@@ -1,4 +1,5 @@
 #include "array.h"
+#include <stdbool.h>
 #include <stdint.h>
 #include <stdlib.h>
 
@@ -52,3 +53,22 @@ void free_array(Array32 *a) {
     free(a);
 }
 
+bool is_empty(Array32 *a) {
+    return a->size == 0;
+}
+Result find(Array32 *a, uint32_t value) {
+    uint32_t res_index = 0;
+    for (int i = 0; i < a->size; i++) {
+        if (a->data[i] == value) {
+            return (Result) {
+                .value = i,
+                .res = true
+            };
+        }
+    }
+    return (Result) {
+        .value = res_index,
+        .res = false
+    };
+    
+}

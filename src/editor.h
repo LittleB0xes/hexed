@@ -27,8 +27,10 @@ typedef struct Editor {
     uint8_t *data;
     Array32 *search_pattern;
     Array32 *search_result;
+    uint32_t result_index;
 } Editor;
 
+Editor load_editor(const char* file_name);
 void free_editor(Editor editor);
 void escape(Editor *editor);
 void move_right(Editor *editor);
@@ -63,5 +65,7 @@ bool enter_edit_ascii(Editor *editor, uint32_t c);
 bool printable_ascii(uint32_t c);
 bool search_input(Editor *editor, char c);
 void search_pattern(Editor *editor);
+void go_to_next_result(Editor *editor);
+void go_to_previous_result(Editor *editor);
 #endif // !EDITOR_H
 
