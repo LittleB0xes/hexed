@@ -9,6 +9,8 @@
 
 #include "array.h"
 
+#define MAX_UNDO 10
+
 typedef enum Mode {
     Normal,
     Edit,
@@ -17,6 +19,21 @@ typedef enum Mode {
     Search
 } Mode;
 
+ typedef enum Command {
+     None,
+     Cut,
+     Paste,
+     InsertByte,
+     InsertAscii,
+     InsertEmpty
+ } Command;
+
+typedef struct Action {
+    Command command;
+    uint32_t value;
+    uint32_t index;
+} Action;
+
 typedef struct Editor {
     Mode mode;
     uint32_t jump_address;
@@ -24,10 +41,13 @@ typedef struct Editor {
     uint8_t nibble_index;
     uint32_t cursor_index;
     uint32_t size;
+    Action undo_list[MAX_UNDO];
+    uint32_t undo_index;
     uint8_t *data;
     Array32 *search_pattern;
     Array32 *search_result;
     uint32_t result_index;
+    uint32_t r1;                // Register to store some temporary data
 } Editor;
 
 Editor load_editor(const char* file_name);
@@ -67,5 +87,6 @@ bool search_input(Editor *editor, char c);
 void search_pattern(Editor *editor);
 void go_to_next_result(Editor *editor);
 void go_to_previous_result(Editor *editor);
+void archivist(Editor *editor, Command command, uint32_t value);
+void undo(Editor *editor);
 #endif // !EDITOR_H
-
