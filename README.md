@@ -34,7 +34,7 @@ or, if you need, on several files in the same time, with the ability to navigate
 - N             next file
 - P             previous file
 - J             jump to address
-- a             insert a byte after cursor position
+- a             insert a byte at cursor position
 - x             cut a byte
 - y             copy a byte 
 - p             paste a byte
