@@ -43,6 +43,7 @@ or, if you need, on several files in the same time, with the ability to navigate
 - s             search hex sequence
 - >             move to the next search result
 - <             move to the previous search result
+- u             Undo (max undo : 500)
 - <BCKSPACE>    Delete in search or jump mode
 - <ESC>         quit insert mode
 - <SPACE>       force refresh
