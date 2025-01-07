@@ -89,4 +89,5 @@ void go_to_next_result(Editor *editor);
 void go_to_previous_result(Editor *editor);
 void archivist(Editor *editor, Command command, uint32_t value);
 void undo(Editor *editor);
+void delete_undo_task(Editor *editor);
 #endif // !EDITOR_H

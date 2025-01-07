@@ -340,16 +340,9 @@ void undo(Editor *editor) {
             editor->data = realloc(editor->data, editor->size);
 
 
-            // Delete Task
-            editor->undo_list[editor->undo_index] = (Action) {None, 0, 0};
-            if (editor->undo_index > 0) {
-            editor->undo_index -= 1;
-            } else {
-            editor->undo_index = MAX_UNDO - 1;
-            }
-
-
+            delete_undo_task(editor);
             break;
+
         case Cut:
             editor->cursor_index = undo_task.index;
 
@@ -363,11 +356,9 @@ void undo(Editor *editor) {
 
             editor->data[editor->cursor_index] = undo_task.value;
 
-            // Delete Task
-            editor->undo_list[editor->undo_index] = (Action) {None, 0, 0};
-            editor->undo_index -= 1;
-
+            delete_undo_task(editor);
             break;
+
         case Paste:
         case InsertByte:
         case InsertAscii:
@@ -375,15 +366,20 @@ void undo(Editor *editor) {
 
             editor->data[undo_task.index] = undo_task.value;
             
-            // Delete Task
-            editor->undo_list[editor->undo_index] = (Action) {None, 0, 0};
-            editor->undo_index -= 1;
+            delete_undo_task(editor);
+
             break;
-
-
         default:
             break;
 
     }
+}
 
+void delete_undo_task(Editor *editor) {
+    editor->undo_list[editor->undo_index] = (Action) {None, 0, 0};
+    if (editor->undo_index > 0) {
+        editor->undo_index -= 1;
+    } else {
+        editor->undo_index = MAX_UNDO - 1;
+    }
 }
