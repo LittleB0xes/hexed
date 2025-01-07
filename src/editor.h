@@ -9,7 +9,7 @@
 
 #include "array.h"
 
-#define MAX_UNDO 10
+#define MAX_UNDO 500
 
 typedef enum Mode {
     Normal,

@@ -316,6 +316,11 @@ int main(int argc, char *argv[]) {
                     add_byte(editor);
                     refresh = true;
                     break;
+                case 'u':
+                    undo(editor);
+                    refresh = true;
+                    break;
+
                 case 9:
                     show_title = !show_title;
                     refresh = true;

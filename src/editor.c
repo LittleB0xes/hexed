@@ -325,5 +325,65 @@ void archivist(Editor *editor, Command command, uint32_t value) {
 }
 
 void undo(Editor *editor) {
+    Action undo_task = editor->undo_list[editor->undo_index];
+    //save cursor_index
+    switch (undo_task.command) {
+        case InsertEmpty:
+            editor->cursor_index = undo_task.index;
+
+            editor->cursor_index = undo_task.index;
+
+            for (int i = editor->cursor_index; i < editor->size - 1; i++) {
+                editor->data[i] = editor->data[i + 1];
+            }
+            editor->size -= 1;
+            editor->data = realloc(editor->data, editor->size);
+
+
+            // Delete Task
+            editor->undo_list[editor->undo_index] = (Action) {None, 0, 0};
+            if (editor->undo_index > 0) {
+            editor->undo_index -= 1;
+            } else {
+            editor->undo_index = MAX_UNDO - 1;
+            }
+
+
+            break;
+        case Cut:
+            editor->cursor_index = undo_task.index;
+
+            // Restore Data
+            editor->size += 1;
+            editor->data = realloc(editor->data, editor->size);
+            editor->data[editor->size - 1] = 0;
+            for (uint32_t i = editor->size - 1; i > editor->cursor_index; i--) {
+                editor->data[i] = editor->data[i - 1];
+            }
+
+            editor->data[editor->cursor_index] = undo_task.value;
+
+            // Delete Task
+            editor->undo_list[editor->undo_index] = (Action) {None, 0, 0};
+            editor->undo_index -= 1;
+
+            break;
+        case Paste:
+        case InsertByte:
+        case InsertAscii:
+            editor->cursor_index = undo_task.index;
+
+            editor->data[undo_task.index] = undo_task.value;
+            
+            // Delete Task
+            editor->undo_list[editor->undo_index] = (Action) {None, 0, 0};
+            editor->undo_index -= 1;
+            break;
+
+
+        default:
+            break;
+
+    }
 
 }
