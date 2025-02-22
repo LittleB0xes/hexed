@@ -10,11 +10,13 @@
 #include "editor.h"
 #include "array.h"
 
-void render_file(uint8_t *data, Editor *editor, char *file_name, uint32_t page_size, int line);
 
+
+void render_file(uint8_t *data, Editor *editor, char *file_name, uint32_t page_size, int line);
 int valid_entry(char c);
 bool is_printable_code(uint8_t c);
 int render_title(int line);
+void render_help(int x, int line);
 
 
 int main(int argc, char *argv[]) {
@@ -28,6 +30,7 @@ int main(int argc, char *argv[]) {
     tb_init();
     bool refresh = true;
     bool show_title = true;
+    bool show_help = false;
     bool exit = false;
 
 
@@ -72,14 +75,27 @@ int main(int argc, char *argv[]) {
                 line = render_title(line);
             }
 
+
             render_file(editor->data, editor, argv[current_file + 1],page_size, line);
+            if (show_help) {
+                render_help(4, 7);
+            }
 
             tb_present();
             refresh = false;
         }
 
         tb_poll_event(&e);
-        if (editor->mode == Edit) {
+        if (show_help) {
+            switch (e.ch) {
+                case '?':
+                    refresh = true;
+                    show_help = false;
+                    break;
+            }
+
+        }
+        else if (editor->mode == Edit) {
             if (enter_edit_hex(editor, e.ch)) refresh = true;
             switch (e.key) {
                 case TB_KEY_ESC:
@@ -320,6 +336,10 @@ int main(int argc, char *argv[]) {
                     undo(editor);
                     refresh = true;
                     break;
+                case '?':
+                    show_help = true;
+                    refresh = true;
+                    break;
 
                 case 9:
                     show_title = !show_title;
@@ -465,3 +485,39 @@ int render_title(int line) {
 
     return line + 6;
 }
+
+void render_help(int x, int line) {
+
+
+    tb_print(x, line, TB_MAGENTA, TB_DEFAULT,     "     - hjkl          move (arrows works too)              ");
+    tb_print(x, line + 1, TB_MAGENTA,  TB_DEFAULT,"     - g             move to the beginning of the file    ");
+    tb_print(x, line + 2, TB_MAGENTA,  TB_DEFAULT,"     - G             move to the end of the file          ");     
+    tb_print(x, line + 3, TB_MAGENTA,  TB_DEFAULT,"     - (             move to the beginning of the line    ");
+    tb_print(x, line + 4, TB_MAGENTA,  TB_DEFAULT,"     - )             move to the end of the line          ");     
+    tb_print(x, line + 5, TB_MAGENTA,  TB_DEFAULT,"     - [             move to the beginning of the page    ");
+    tb_print(x, line + 6, TB_MAGENTA,  TB_DEFAULT,"     - ]             move to the end of the page          ");     
+    tb_print(x, line + 7, TB_MAGENTA,  TB_DEFAULT,"     - n             next page                            ");     
+    tb_print(x, line + 8, TB_MAGENTA,  TB_DEFAULT,"     - b             previous page                        ");     
+    tb_print(x, line + 9, TB_MAGENTA,  TB_DEFAULT,"     - N             next file                            ");     
+    tb_print(x, line + 10, TB_MAGENTA, TB_DEFAULT,"     - P             previous file                        ");     
+    tb_print(x, line + 11, TB_MAGENTA, TB_DEFAULT,"     - J             jump to address                      ");     
+    tb_print(x, line + 12, TB_MAGENTA, TB_DEFAULT,"     - a             insert a byte at cursor position     ");
+    tb_print(x, line + 13, TB_MAGENTA, TB_DEFAULT,"     - x             cut a byte                           ");     
+    tb_print(x, line + 14, TB_MAGENTA, TB_DEFAULT,"     - y             copy a byte                          ");     
+    tb_print(x, line + 15, TB_MAGENTA, TB_DEFAULT,"     - p             paste a byte                         ");     
+    tb_print(x, line + 16, TB_MAGENTA, TB_DEFAULT,"     - i             insert mode                          ");     
+    tb_print(x, line + 17, TB_MAGENTA, TB_DEFAULT,"     - I             insert mode (in ascii)               ");     
+    tb_print(x, line + 18, TB_MAGENTA, TB_DEFAULT,"     - s             search hex sequence                  ");     
+    tb_print(x, line + 19, TB_MAGENTA, TB_DEFAULT,"     - >             move to the next search result       ");     
+    tb_print(x, line + 20, TB_MAGENTA, TB_DEFAULT,"     - <             move to the previous search result   ");
+    tb_print(x, line + 21, TB_MAGENTA, TB_DEFAULT,"     - u             Undo (max undo : 500)                ");     
+    tb_print(x, line + 22, TB_MAGENTA, TB_DEFAULT,"     - <BCKSPACE>    Delete in search or jump mode        ");     
+    tb_print(x, line + 23, TB_MAGENTA, TB_DEFAULT,"     - <ESC>         quit insert mode                     ");     
+    tb_print(x, line + 24, TB_MAGENTA, TB_DEFAULT,"     - <SPACE>       force refresh                        ");     
+    tb_print(x, line + 25, TB_MAGENTA, TB_DEFAULT,"     - <TAB>         show / hide title                    ");     
+    tb_print(x, line + 25, TB_MAGENTA, TB_DEFAULT,"     - ?             show / hide help                     ");     
+    tb_print(x, line + 26, TB_MAGENTA, TB_DEFAULT,"     - w             write file                           ");     
+    tb_print(x, line + 27, TB_MAGENTA, TB_DEFAULT,"     - q             quit                                 ");     
+
+}
+
