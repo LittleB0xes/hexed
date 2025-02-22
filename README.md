@@ -15,10 +15,10 @@ This project use [Termbox2](https://github.com/termbox/termbox2)
 
 ## Usage
 You can work on one file
-> ./rhexed my_file
+> ./hexed my_file
 
 or, if you need, on several files in the same time, with the ability to navigate from file to file.
-> ./rhexed my_file_1 my_file_2 my_file_3 ...
+> ./hexed my_file_1 my_file_2 my_file_3 ...
 
 ## Command
 ```
@@ -32,7 +32,7 @@ or, if you need, on several files in the same time, with the ability to navigate
 - n             next page
 - b             previous page
 - N             next file
-- P             previous file
+- B             previous file
 - J             jump to address
 - a             insert a byte at cursor position
 - x             cut a byte
