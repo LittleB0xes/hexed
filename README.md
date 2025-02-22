@@ -48,6 +48,7 @@ or, if you need, on several files in the same time, with the ability to navigate
 - <ESC>         quit insert mode
 - <SPACE>       force refresh
 - <TAB>         show / hide title
+- ?             show / hide help
 - w             write file
 - q             quit
 ```
