@@ -1,4 +1,5 @@
 #include "array.h"
+#include <stdio.h>
 #define TB_IMPL
 #include <stdbool.h>
 #include <stdint.h>
@@ -22,6 +23,10 @@ void render_help(int x, int line);
 int main(int argc, char *argv[]) {
 
     int file_number = argc - 1;
+    if (file_number == 0) {
+        printf("No file provided\n");
+        return -1;
+    }
     Editor *all_editors = (Editor*) malloc(file_number * sizeof(Editor));
     for (int i = 1; i <= file_number; i++) {
         all_editors[i-1] = load_editor(argv[i]);
